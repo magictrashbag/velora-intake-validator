@@ -1,0 +1,57 @@
+{
+  "_comment": "Facts extracted ONCE from intake-emails.docx (LLM-assisted, then hand-verified). The validator re-verifies every anchor_quote against the docx text at runtime and aborts if any quote no longer appears - this is the offline/deterministic replay mode. No LLM is called at runtime.",
+  "facts": {
+    "global_deadline": {
+      "value": "2026-10-15",
+      "source": "Email 1 (Sanne, Mon 28 Jul)",
+      "anchor_quote": "live by 15 October at the latest"
+    },
+    "masterdata_version_sent": {
+      "value": "masterdata_v3.xlsx",
+      "source": "Email 1 (Sanne, Mon 28 Jul)",
+      "anchor_quote": "masterdata_v3.xlsx with the full SKU list"
+    },
+    "pb_shape_change": {
+      "value": true,
+      "source": "Email 2 (Tomas, Wed 30 Jul)",
+      "anchor_quote": "do not reuse the old Pure Botanica renders, the shape is different"
+    },
+    "video_scope_request": {
+      "value": "e-commerce videos for hero SKUs, undefined scope",
+      "source": "Email 2 (Tomas, Wed 30 Jul)",
+      "anchor_quote": "short e-commerce videos for the hero SKUs"
+    },
+    "nordmart_priority": {
+      "value": true,
+      "source": "Email 2 (Tomas, Wed 30 Jul)",
+      "anchor_quote": "whatever Nordmart needs should be prioritized"
+    },
+    "late_artworks": {
+      "value": {
+        "eta": "2026-09-05",
+        "files": [
+          "velora-pb-vanilla-250.pdf",
+          "velora-mn-active-150.pdf",
+          "velora-mn-stick-50.pdf"
+        ]
+      },
+      "source": "Email 3 (Lea, Fri 1 Aug)",
+      "anchor_quote": "will follow by 5 September at the latest"
+    },
+    "pb_finish_matte": {
+      "value": "matte",
+      "source": "Email 3 (Lea, Fri 1 Aug)",
+      "anchor_quote": "the Pure Botanica range switched from gloss to a matte finish"
+    },
+    "nordmart_deadline": {
+      "value": "2026-09-22",
+      "source": "Email 4 (Sanne, Sun 3 Aug)",
+      "anchor_quote": "in their portal by 22 September"
+    },
+    "reuse_policy": {
+      "value": "reuse existing twins where nothing changed on the product (geometry-level reuse; every SKU received new refresh artwork, so no SKU qualifies for full output reuse without client confirmation that its artwork is unchanged)",
+      "source": "Email 4 (Sanne, Sun 3 Aug)",
+      "anchor_quote": "reuse the existing twins from the spring project"
+    }
+  }
+}

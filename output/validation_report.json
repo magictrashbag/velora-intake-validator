@@ -1,0 +1,366 @@
+{
+  "provenance": {
+    "intake-emails.docx": "fcd7c7199cd5d9a4",
+    "velora-skus.csv": "894bf8e7e7e301a1",
+    "artwork-spec.docx": "b38b06b20ffa50e8"
+  },
+  "counts": {
+    "blocker": 5,
+    "warning": 23,
+    "info": 16
+  },
+  "order_level": [
+    {
+      "severity": "blocker",
+      "code": "MASTERDATA_VERSION",
+      "message": "CSV is the spring 'v2' export but the client attached masterdata_v3.xlsx (Email 1). SKU list may be stale - see orphan-artwork and missing-artwork defects for concrete evidence of a delta.",
+      "evidence": "brief: 'labeled v2 in our system'; Email 1: masterdata_v3.xlsx",
+      "resolution": "request v3 from client; validator reconciles CSV vs manifest meanwhile"
+    },
+    {
+      "severity": "info",
+      "code": "VIDEO_SCOPE_REQUEST",
+      "message": "Email 2 asks for e-commerce videos for 'hero SKUs' - undefined scope, no SKUs flagged as hero, no video spec in the pack.",
+      "evidence": "Email 2 (Tomas)",
+      "resolution": "route to account team as separate scope/quote; does not gate packshots"
+    },
+    {
+      "severity": "warning",
+      "code": "ORPHAN_ARTWORK",
+      "message": "artwork velora-hb-fresh-100-travel.pdf is on the StudioPack drive but matches no SKU in the CSV - likely a SKU that exists in masterdata v3 but not in our v2 export",
+      "evidence": "manifest vs CSV cross-check",
+      "resolution": "needs_client: confirm scope with the v3 file"
+    },
+    {
+      "severity": "warning",
+      "code": "ORPHAN_ARTWORK",
+      "message": "artwork velora-pb-handcream-250.pdf is on the StudioPack drive but matches no SKU in the CSV - likely a SKU that exists in masterdata v3 but not in our v2 export",
+      "evidence": "manifest vs CSV cross-check",
+      "resolution": "needs_client: confirm scope with the v3 file"
+    }
+  ],
+  "per_sku": {
+    "VS-112": [
+      {
+        "severity": "blocker",
+        "code": "TRADE_CODE_DUPLICATE",
+        "message": "trade code VLR-2214 already used by VS-103 - delivery filenames would collide; sequence inference suggests VLR-2221 for VS-112 (Silk Repair runs 2216-2223 with 2221 unused) but a guessed code must not reach deliverables",
+        "evidence": "CSV: VS-103, VS-112 share VLR-2214",
+        "resolution": "needs_client: confirm correct code"
+      },
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'gloss+foil' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-112 vs manifest velora-sr-conditioner-volume-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-102": [
+      {
+        "severity": "warning",
+        "code": "ARTWORK_REF_MISMATCH",
+        "message": "CSV points at velora-hb-fresh-250.pdf but variant 'Citrus' matches velora-hb-citrus-250.pdf",
+        "evidence": "distinctive variant-token match vs manifest",
+        "resolution": "auto_fixed: using velora-hb-citrus-250.pdf; flagged for client confirm"
+      }
+    ],
+    "VS-104": [
+      {
+        "severity": "blocker",
+        "code": "TRADE_CODE_MISSING",
+        "message": "no trade code - every delivery filename derives from it; twin production can proceed but nothing can be named or delivered; sequence inference suggests VLR-2212 (report-only, not applied)",
+        "evidence": "CSV VS-104: empty trade_code",
+        "resolution": "needs_client: confirm code"
+      }
+    ],
+    "VS-105": [
+      {
+        "severity": "info",
+        "code": "SIZE_FORMAT",
+        "message": "converted 0.4 L to 400ml",
+        "evidence": "CSV VS-105: size='0.4' unit='L'",
+        "resolution": "auto_fixed: normalized to 400ml"
+      },
+      {
+        "severity": "warning",
+        "code": "LANGUAGE_MISMATCH",
+        "message": "CSV languages EN,FR vs artwork panels EN/FR/DE",
+        "evidence": "CSV VS-105 vs manifest velora-hb-sport-400.pdf",
+        "resolution": "auto_fixed: using artwork panels EN/FR/DE; flagged for client confirm"
+      },
+      {
+        "severity": "warning",
+        "code": "BASE_DIELINE_MISMATCH",
+        "message": "this SKU's artwork is on dieline DL-HB-400 but base VS-101 is on DL-HB-250 - geometry cannot be reused from that master",
+        "evidence": "manifest dielines for velora-hb-sport-400.pdf vs velora-hb-fresh-250.pdf",
+        "resolution": "needs_internal: check the spring twin library for a matching-dieline master; fallback = new master (+~25h)"
+      }
+    ],
+    "VS-107": [
+      {
+        "severity": "warning",
+        "code": "LANGUAGES_MISSING",
+        "message": "CSV has no languages; artwork carries panels EN/FR/DE",
+        "evidence": "CSV VS-107 vs manifest velora-sr-shampoo-smooth-300.pdf",
+        "resolution": "auto_fixed: using artwork panels EN/FR/DE"
+      },
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'none' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-107 vs manifest velora-sr-shampoo-smooth-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-108": [
+      {
+        "severity": "warning",
+        "code": "LANGUAGE_MISMATCH",
+        "message": "CSV languages EN,FR,NL vs artwork panels EN/FR/DE (source says 'Dutch' - ambiguous: German (Deutsch) mistyped, or a genuine NL requirement the artwork does not carry (NL panels exist elsewhere in this range) - two different defects with two different owners)",
+        "evidence": "CSV VS-108 vs manifest velora-sr-shampoo-volume-300.pdf",
+        "resolution": "auto_fixed: using artwork panels EN/FR/DE; flagged for client confirm"
+      },
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'none' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-108 vs manifest velora-sr-shampoo-volume-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-109": [
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'none' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-109 vs manifest velora-sr-shampoo-repair-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-110": [
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'TBD' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-110 vs manifest velora-sr-shampoo-curl-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      },
+      {
+        "severity": "warning",
+        "code": "BASE_MASTER_IS_RECOLOR",
+        "message": "base_master VS-109 is itself a recolor; geometry root is VS-107",
+        "evidence": "CSV VS-110: VS-109 has twin_action=recolor",
+        "resolution": "auto_fixed: re-parented to VS-107"
+      }
+    ],
+    "VS-111": [
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'TBD' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-111 vs manifest velora-sr-conditioner-smooth-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-113": [
+      {
+        "severity": "blocker",
+        "code": "ARTWORK_MISSING",
+        "message": "no artwork on the StudioPack drive matches this SKU (CSV says velora-sr-conditioner-argan-300.pdf); it is also not in the announced late list",
+        "evidence": "manifest (artwork-spec.docx) + Email 3 late list",
+        "resolution": "needs_client: ask Sanne/Lea whether this SKU is still in scope (see v3 mismatch)"
+      }
+    ],
+    "VS-114": [
+      {
+        "severity": "warning",
+        "code": "LANGUAGE_MISMATCH",
+        "message": "CSV languages EN,FR,DE vs artwork panels EN/FR/DE/NL",
+        "evidence": "CSV VS-114 vs manifest velora-sr-conditioner-keratin-300.pdf",
+        "resolution": "auto_fixed: using artwork panels EN/FR/DE/NL; flagged for client confirm"
+      },
+      {
+        "severity": "info",
+        "code": "FINISH_MISMATCH",
+        "message": "CSV finish 'gloss+foil' vs artwork finish plate 'gloss + foil accent'",
+        "evidence": "CSV VS-114 vs manifest velora-sr-conditioner-keratin-300.pdf",
+        "resolution": "auto_fixed: using artwork finish plate 'gloss + foil accent'"
+      }
+    ],
+    "VS-115": [
+      {
+        "severity": "warning",
+        "code": "FINISH_OVERRIDE_EMAIL",
+        "message": "CSV/manifest say gloss but Pure Botanica switched to matte after the sustainability review",
+        "evidence": "Email 3 (Lea): gloss to matte, dielines unchanged",
+        "resolution": "auto_fixed: finish=matte"
+      },
+      {
+        "severity": "warning",
+        "code": "SHAPE_CHANGE_RECLASS",
+        "message": "CSV says existing_master but the PET bottle change forces a new master",
+        "evidence": "Email 2 (Tomas): 'the shape is different'",
+        "resolution": "auto_fixed: classification=new_master; client confirm requested (cost impact)"
+      }
+    ],
+    "VS-116": [
+      {
+        "severity": "info",
+        "code": "SIZE_FORMAT",
+        "message": "unit embedded in size field ('400ml')",
+        "evidence": "CSV VS-116: size='400ml' unit=''",
+        "resolution": "auto_fixed: normalized to 400ml"
+      },
+      {
+        "severity": "warning",
+        "code": "FINISH_OVERRIDE_EMAIL",
+        "message": "CSV/manifest say gloss but Pure Botanica switched to matte after the sustainability review",
+        "evidence": "Email 3 (Lea): gloss to matte, dielines unchanged",
+        "resolution": "auto_fixed: finish=matte"
+      },
+      {
+        "severity": "warning",
+        "code": "SHAPE_CHANGE_RECLASS",
+        "message": "CSV says recolor but the PET bottle change forces a new master (base VS-115 is a different dieline anyway)",
+        "evidence": "Email 2 (Tomas): 'the shape is different'",
+        "resolution": "auto_fixed: classification=new_master; client confirm requested (cost impact)"
+      }
+    ],
+    "VS-117": [
+      {
+        "severity": "warning",
+        "code": "FINISH_OVERRIDE_EMAIL",
+        "message": "CSV/manifest say gloss but Pure Botanica switched to matte after the sustainability review",
+        "evidence": "Email 3 (Lea): gloss to matte, dielines unchanged",
+        "resolution": "auto_fixed: finish=matte"
+      },
+      {
+        "severity": "info",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-115 is itself being rebuilt for the PET shape change",
+        "evidence": "Email 2",
+        "resolution": "sequence: master first"
+      }
+    ],
+    "VS-118": [
+      {
+        "severity": "blocker",
+        "code": "TRADE_CODE_MISSING",
+        "message": "no trade code - every delivery filename derives from it; twin production can proceed but nothing can be named or delivered; sequence inference suggests VLR-2227 (report-only, not applied)",
+        "evidence": "CSV VS-118: empty trade_code",
+        "resolution": "needs_client: confirm code"
+      },
+      {
+        "severity": "warning",
+        "code": "FINISH_OVERRIDE_EMAIL",
+        "message": "CSV/manifest say gloss but Pure Botanica switched to matte after the sustainability review",
+        "evidence": "Email 3 (Lea): gloss to matte, dielines unchanged",
+        "resolution": "auto_fixed: finish=matte"
+      },
+      {
+        "severity": "info",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-115 is itself being rebuilt for the PET shape change",
+        "evidence": "Email 2",
+        "resolution": "sequence: master first"
+      }
+    ],
+    "VS-119": [
+      {
+        "severity": "warning",
+        "code": "ARTWORK_PENDING",
+        "message": "artwork velora-pb-vanilla-250.pdf not on the drive yet; StudioPack ETA 2026-09-05",
+        "evidence": "Email 3 (Lea): late-artwork list",
+        "resolution": "watch drive; escalate if not delivered by ETA"
+      },
+      {
+        "severity": "warning",
+        "code": "FINISH_OVERRIDE_EMAIL",
+        "message": "CSV/manifest say gloss but Pure Botanica switched to matte after the sustainability review",
+        "evidence": "Email 3 (Lea): gloss to matte, dielines unchanged",
+        "resolution": "auto_fixed: finish=matte"
+      },
+      {
+        "severity": "info",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-115 is itself being rebuilt for the PET shape change",
+        "evidence": "Email 2",
+        "resolution": "sequence: master first"
+      },
+      {
+        "severity": "warning",
+        "code": "SCHEDULE_RISK_NORDMART",
+        "message": "Nordmart deadline 2026-09-22 but artwork lands ~2026-09-05 - 17 days for master/mapping/QC/outputs",
+        "evidence": "Email 4 (deadline pull-in) + Email 3 (late artwork)",
+        "resolution": "start geometry from dieline now; escalate on any ETA slip"
+      }
+    ],
+    "VS-120": [
+      {
+        "severity": "warning",
+        "code": "ARTWORK_PENDING",
+        "message": "artwork velora-mn-active-150.pdf not on the drive yet; StudioPack ETA 2026-09-05",
+        "evidence": "Email 3 (Lea): late-artwork list",
+        "resolution": "watch drive; escalate if not delivered by ETA"
+      },
+      {
+        "severity": "info",
+        "code": "GEOMETRY_CAN_START",
+        "message": "master artwork is late but sibling artworks share dieline DL-MN-150 - geometry can start now; only label mapping waits for the file",
+        "evidence": "manifest: same range+size artworks on the drive",
+        "resolution": "sequence: start geometry now"
+      }
+    ],
+    "VS-121": [
+      {
+        "severity": "warning",
+        "code": "BASE_MASTER_DANGLING",
+        "message": "base_master VS-199 does not exist in the SKU list; VS-120 is the only Velora Men 150ml master",
+        "evidence": "CSV VS-121: base_master=VS-199",
+        "resolution": "auto_fixed: re-parented to VS-120"
+      },
+      {
+        "severity": "info",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-120's artwork arrives ~2026-09-05; master geometry can start now from the range dieline, mapping waits for artwork",
+        "evidence": "Email 3 late list + Email 4 deadline pull-in",
+        "resolution": "sequence: start geometry now"
+      }
+    ],
+    "VS-122": [
+      {
+        "severity": "warning",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-120's artwork arrives ~2026-09-05; master geometry can start now from the range dieline, mapping waits for artwork - tight against the Nordmart deadline 2026-09-22",
+        "evidence": "Email 3 late list + Email 4 deadline pull-in",
+        "resolution": "sequence: start geometry now"
+      }
+    ],
+    "VS-123": [
+      {
+        "severity": "info",
+        "code": "MASTER_DEPENDENCY",
+        "message": "base master VS-120's artwork arrives ~2026-09-05; master geometry can start now from the range dieline, mapping waits for artwork",
+        "evidence": "Email 3 late list + Email 4 deadline pull-in",
+        "resolution": "sequence: start geometry now"
+      }
+    ],
+    "VS-124": [
+      {
+        "severity": "warning",
+        "code": "ARTWORK_PENDING",
+        "message": "artwork velora-mn-stick-50.pdf not on the drive yet; StudioPack ETA 2026-09-05",
+        "evidence": "Email 3 (Lea): late-artwork list",
+        "resolution": "watch drive; escalate if not delivered by ETA"
+      },
+      {
+        "severity": "warning",
+        "code": "DIELINE_UNKNOWN",
+        "message": "master artwork is late and no artwork on the drive shares this range+size - there is no dieline to start geometry from",
+        "evidence": "manifest has no matching range+size row",
+        "resolution": "needs_client: ask StudioPack for the dieline now, ahead of the artwork"
+      }
+    ]
+  }
+}

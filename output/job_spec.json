@@ -1,0 +1,1248 @@
+{
+  "provenance": {
+    "inputs": {
+      "intake-emails.docx": "fcd7c7199cd5d9a4",
+      "velora-skus.csv": "894bf8e7e7e301a1",
+      "artwork-spec.docx": "b38b06b20ffa50e8"
+    },
+    "email_facts": {
+      "global_deadline": {
+        "value": "2026-10-15",
+        "source": "Email 1 (Sanne, Mon 28 Jul)",
+        "anchor_quote": "live by 15 October at the latest"
+      },
+      "masterdata_version_sent": {
+        "value": "masterdata_v3.xlsx",
+        "source": "Email 1 (Sanne, Mon 28 Jul)",
+        "anchor_quote": "masterdata_v3.xlsx with the full SKU list"
+      },
+      "pb_shape_change": {
+        "value": true,
+        "source": "Email 2 (Tomas, Wed 30 Jul)",
+        "anchor_quote": "do not reuse the old Pure Botanica renders, the shape is different"
+      },
+      "video_scope_request": {
+        "value": "e-commerce videos for hero SKUs, undefined scope",
+        "source": "Email 2 (Tomas, Wed 30 Jul)",
+        "anchor_quote": "short e-commerce videos for the hero SKUs"
+      },
+      "nordmart_priority": {
+        "value": true,
+        "source": "Email 2 (Tomas, Wed 30 Jul)",
+        "anchor_quote": "whatever Nordmart needs should be prioritized"
+      },
+      "late_artworks": {
+        "value": {
+          "eta": "2026-09-05",
+          "files": [
+            "velora-pb-vanilla-250.pdf",
+            "velora-mn-active-150.pdf",
+            "velora-mn-stick-50.pdf"
+          ]
+        },
+        "source": "Email 3 (Lea, Fri 1 Aug)",
+        "anchor_quote": "will follow by 5 September at the latest"
+      },
+      "pb_finish_matte": {
+        "value": "matte",
+        "source": "Email 3 (Lea, Fri 1 Aug)",
+        "anchor_quote": "the Pure Botanica range switched from gloss to a matte finish"
+      },
+      "nordmart_deadline": {
+        "value": "2026-09-22",
+        "source": "Email 4 (Sanne, Sun 3 Aug)",
+        "anchor_quote": "in their portal by 22 September"
+      },
+      "reuse_policy": {
+        "value": "reuse existing twins where nothing changed on the product (geometry-level reuse; every SKU received new refresh artwork, so no SKU qualifies for full output reuse without client confirmation that its artwork is unchanged)",
+        "source": "Email 4 (Sanne, Sun 3 Aug)",
+        "anchor_quote": "reuse the existing twins from the spring project"
+      }
+    },
+    "conventions": {
+      "dates": "ISO YYYY-MM-DD, order year 2026",
+      "size_token": "integer millilitres + 'ml' (e.g. 250ml)",
+      "trade_code": "VLR-NNNN upper-case canonical, lower-cased in filenames",
+      "filename_tokens": "lower-case, spaces to dashes",
+      "language_ground_truth": "artwork language panels win over CSV",
+      "deadline_model": "channel-driven, not wave-driven: nordmart outputs due 2026-09-22 (Email 4 pull-in), all other channels 2026-10-15 (Email 1); SKU deadline = earliest of its outputs. Wave is carried as information only - Email 1 ties early dates to RETAILER reset dates, and the only retailer channel is Nordmart"
+    }
+  },
+  "skus": [
+    {
+      "sku_id": "VS-101",
+      "trade_code": "VLR-2210",
+      "proposed_trade_code": null,
+      "range": "Hydra Boost",
+      "variant": "Fresh",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "spring:VS-101",
+        "rationale": "geometry reused from the spring twin; new refresh artwork must still be preprocessed and mapped (artwork refresh). Pure 'reuse' only if client confirms the artwork is unchanged (Email 4 reuse request honored at geometry level)"
+      },
+      "artwork": {
+        "file": "velora-hb-fresh-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-fresh-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2210_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2210-velora-hydra-boost-fresh-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2210-velora-hydra-boost-fresh-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-102",
+      "trade_code": "VLR-2211",
+      "proposed_trade_code": null,
+      "range": "Hydra Boost",
+      "variant": "Citrus",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-101",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-hb-citrus-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-fresh-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2211_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2211-velora-hydra-boost-citrus-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2211-velora-hydra-boost-citrus-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-103",
+      "trade_code": "VLR-2214",
+      "proposed_trade_code": null,
+      "range": "Hydra Boost",
+      "variant": "Aloe",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-101",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-hb-aloe-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-aloe-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2214_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2214-velora-hydra-boost-aloe-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2214-velora-hydra-boost-aloe-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-104",
+      "trade_code": null,
+      "proposed_trade_code": "VLR-2212",
+      "range": "Hydra Boost",
+      "variant": "Coconut",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-101",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-hb-coconut-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-coconut-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": null,
+          "deadline": "2026-09-22",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        },
+        {
+          "channel": "ecom",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        },
+        {
+          "channel": "social",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "blocked_delivery_naming"
+    },
+    {
+      "sku_id": "VS-105",
+      "trade_code": "VLR-2213",
+      "proposed_trade_code": null,
+      "range": "Hydra Boost",
+      "variant": "Sport",
+      "size_ml": 400,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": null,
+        "rationale": "base master invalid (different dieline); awaiting internal library check"
+      },
+      "artwork": {
+        "file": "velora-hb-sport-400.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-sport-400.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2213_400ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2213-velora-hydra-boost-sport-400ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2213-velora-hydra-boost-sport-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-106",
+      "trade_code": "VLR-2215",
+      "proposed_trade_code": null,
+      "range": "Hydra Boost",
+      "variant": "Sensitive",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-101",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-hb-sensitive-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-hb-sensitive-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2215_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2215-velora-hydra-boost-sensitive-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2215-velora-hydra-boost-sensitive-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-107",
+      "trade_code": "VLR-2216",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Smooth Shampoo",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "spring:VS-107",
+        "rationale": "geometry reused from the spring twin; new refresh artwork must still be preprocessed and mapped (artwork refresh). Pure 'reuse' only if client confirms the artwork is unchanged (Email 4 reuse request honored at geometry level)"
+      },
+      "artwork": {
+        "file": "velora-sr-shampoo-smooth-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-shampoo-smooth-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2216-velora-silk-repair-smooth-shampoo-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2216-velora-silk-repair-smooth-shampoo-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-108",
+      "trade_code": "VLR-2217",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Volume Shampoo",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-107",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-sr-shampoo-volume-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-shampoo-volume-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2217-velora-silk-repair-volume-shampoo-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2217-velora-silk-repair-volume-shampoo-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-109",
+      "trade_code": "VLR-2218",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Repair Shampoo",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-107",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-sr-shampoo-repair-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-shampoo-repair-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2218-velora-silk-repair-repair-shampoo-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2218-velora-silk-repair-repair-shampoo-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-110",
+      "trade_code": "VLR-2219",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Curl Shampoo",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-107",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-sr-shampoo-curl-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-shampoo-curl-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2219-velora-silk-repair-curl-shampoo-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2219-velora-silk-repair-curl-shampoo-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-111",
+      "trade_code": "VLR-2220",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Smooth Conditioner",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "spring:VS-111",
+        "rationale": "geometry reused from the spring twin; new refresh artwork must still be preprocessed and mapped (artwork refresh). Pure 'reuse' only if client confirms the artwork is unchanged (Email 4 reuse request honored at geometry level)"
+      },
+      "artwork": {
+        "file": "velora-sr-conditioner-smooth-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-conditioner-smooth-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2220-velora-silk-repair-smooth-conditioner-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2220-velora-silk-repair-smooth-conditioner-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-112",
+      "trade_code": null,
+      "proposed_trade_code": "VLR-2221",
+      "range": "Silk Repair",
+      "variant": "Volume Conditioner",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-111",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-sr-conditioner-volume-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-conditioner-volume-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        },
+        {
+          "channel": "social",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "blocked_delivery_naming"
+    },
+    {
+      "sku_id": "VS-113",
+      "trade_code": "VLR-2222",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Argan Conditioner",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "gloss+foil",
+      "wave": 2,
+      "twin": {
+        "classification": "blocked",
+        "base_master": "VS-111",
+        "rationale": "no artwork exists for this SKU on the drive or in the late list"
+      },
+      "artwork": {
+        "file": null,
+        "status": "missing",
+        "eta": null,
+        "csv_reference": "velora-sr-conditioner-argan-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2222-velora-silk-repair-argan-conditioner-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2222-velora-silk-repair-argan-conditioner-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "blocked"
+    },
+    {
+      "sku_id": "VS-114",
+      "trade_code": "VLR-2223",
+      "proposed_trade_code": null,
+      "range": "Silk Repair",
+      "variant": "Keratin Conditioner",
+      "size_ml": 300,
+      "languages": [
+        "EN",
+        "FR",
+        "DE",
+        "NL"
+      ],
+      "label_finish": "gloss + foil accent",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-111",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-sr-conditioner-keratin-300.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-sr-conditioner-keratin-300.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2223-velora-silk-repair-keratin-conditioner-300ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2223-velora-silk-repair-keratin-conditioner-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-115",
+      "trade_code": "VLR-2224",
+      "proposed_trade_code": null,
+      "range": "Pure Botanica",
+      "variant": "Shea Body Lotion",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 1,
+      "twin": {
+        "classification": "new_master",
+        "base_master": null,
+        "rationale": "Pure Botanica moved to the recycled-PET bottle - shape changed, old geometry must not be reused (Email 2)"
+      },
+      "artwork": {
+        "file": "velora-pb-shea-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-pb-shea-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2224_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2224-velora-pure-botanica-shea-body-lotion-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2224-velora-pure-botanica-shea-body-lotion-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-116",
+      "trade_code": "VLR-2225",
+      "proposed_trade_code": null,
+      "range": "Pure Botanica",
+      "variant": "Cocoa Body Lotion",
+      "size_ml": 400,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 1,
+      "twin": {
+        "classification": "new_master",
+        "base_master": null,
+        "rationale": "Pure Botanica moved to the recycled-PET bottle - shape changed, old geometry must not be reused (Email 2)"
+      },
+      "artwork": {
+        "file": "velora-pb-cocoa-400.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-pb-cocoa-400.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2225_400ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2225-velora-pure-botanica-cocoa-body-lotion-400ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2225-velora-pure-botanica-cocoa-body-lotion-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-117",
+      "trade_code": "VLR-2226",
+      "proposed_trade_code": null,
+      "range": "Pure Botanica",
+      "variant": "Aloe Body Lotion",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-115",
+        "rationale": "recolor of the rebuilt PET master (dependency: master must be rebuilt first)"
+      },
+      "artwork": {
+        "file": "velora-pb-aloe-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-pb-aloe-250.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2226-velora-pure-botanica-aloe-body-lotion-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2226-velora-pure-botanica-aloe-body-lotion-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-118",
+      "trade_code": null,
+      "proposed_trade_code": "VLR-2227",
+      "range": "Pure Botanica",
+      "variant": "Rose Body Lotion",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-115",
+        "rationale": "recolor of the rebuilt PET master (dependency: master must be rebuilt first)"
+      },
+      "artwork": {
+        "file": "velora-pb-rose-250.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-pb-rose-250.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        },
+        {
+          "channel": "social",
+          "filename": null,
+          "deadline": "2026-10-15",
+          "reason": "no valid unique trade code - filename cannot be generated"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "blocked_delivery_naming"
+    },
+    {
+      "sku_id": "VS-119",
+      "trade_code": "VLR-2228",
+      "proposed_trade_code": null,
+      "range": "Pure Botanica",
+      "variant": "Vanilla Body Lotion",
+      "size_ml": 250,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-115",
+        "rationale": "recolor of the rebuilt PET master (dependency: master must be rebuilt first)"
+      },
+      "artwork": {
+        "file": "velora-pb-vanilla-250.pdf",
+        "status": "pending",
+        "eta": "2026-09-05",
+        "csv_reference": "velora-pb-vanilla-250.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2228_250ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2228-velora-pure-botanica-vanilla-body-lotion-250ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2228-velora-pure-botanica-vanilla-body-lotion-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "pending_artwork"
+    },
+    {
+      "sku_id": "VS-120",
+      "trade_code": "VLR-2229",
+      "proposed_trade_code": null,
+      "range": "Velora Men",
+      "variant": "Active Deo Spray",
+      "size_ml": 150,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "new_master",
+        "base_master": null,
+        "rationale": "declared new master in masterdata"
+      },
+      "artwork": {
+        "file": "velora-mn-active-150.pdf",
+        "status": "pending",
+        "eta": "2026-09-05",
+        "csv_reference": "velora-mn-active-150.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2229-velora-men-active-deo-spray-150ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2229-velora-men-active-deo-spray-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "pending_artwork"
+    },
+    {
+      "sku_id": "VS-121",
+      "trade_code": "VLR-2230",
+      "proposed_trade_code": null,
+      "range": "Velora Men",
+      "variant": "Fresh Deo Spray",
+      "size_ml": 150,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-120",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-mn-fresh-150.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-mn-fresh-150.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2230-velora-men-fresh-deo-spray-150ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2230-velora-men-fresh-deo-spray-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-122",
+      "trade_code": "VLR-2231",
+      "proposed_trade_code": null,
+      "range": "Velora Men",
+      "variant": "Sport Deo Spray",
+      "size_ml": 150,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 1,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-120",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-mn-sport-150.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-mn-sport-150.pdf"
+      },
+      "channels": [
+        "nordmart",
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "nordmart",
+          "filename": "vlr-2231_150ml_nordmart.jpg",
+          "format": "JPG 2000x2000 sRGB, white bg",
+          "deadline": "2026-09-22"
+        },
+        {
+          "channel": "ecom",
+          "filename": "vlr-2231-velora-men-sport-deo-spray-150ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2231-velora-men-sport-deo-spray-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-09-22",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-123",
+      "trade_code": "VLR-2232",
+      "proposed_trade_code": null,
+      "range": "Velora Men",
+      "variant": "Sensitive Deo Spray",
+      "size_ml": 150,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "recolor",
+        "base_master": "VS-120",
+        "rationale": "as declared in masterdata"
+      },
+      "artwork": {
+        "file": "velora-mn-sensitive-150.pdf",
+        "status": "available",
+        "eta": null,
+        "csv_reference": "velora-mn-sensitive-150.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2232-velora-men-sensitive-deo-spray-150ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2232-velora-men-sensitive-deo-spray-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "ready"
+    },
+    {
+      "sku_id": "VS-124",
+      "trade_code": "VLR-2233",
+      "proposed_trade_code": null,
+      "range": "Velora Men",
+      "variant": "Sensitive Stick",
+      "size_ml": 50,
+      "languages": [
+        "EN",
+        "FR",
+        "DE"
+      ],
+      "label_finish": "matte",
+      "wave": 2,
+      "twin": {
+        "classification": "new_master",
+        "base_master": null,
+        "rationale": "declared new master in masterdata"
+      },
+      "artwork": {
+        "file": "velora-mn-stick-50.pdf",
+        "status": "pending",
+        "eta": "2026-09-05",
+        "csv_reference": "velora-mn-stick-50.pdf"
+      },
+      "channels": [
+        "ecom",
+        "social"
+      ],
+      "outputs": [
+        {
+          "channel": "ecom",
+          "filename": "vlr-2233-velora-men-sensitive-stick-50ml-packshot.tif",
+          "format": "Layered TIFF 4000x4000, transparent bg",
+          "deadline": "2026-10-15"
+        },
+        {
+          "channel": "social",
+          "filename": "vlr-2233-velora-men-sensitive-stick-social.png",
+          "format": "PNG 1080x1350, range bg color",
+          "deadline": "2026-10-15"
+        }
+      ],
+      "deadline": "2026-10-15",
+      "status": "pending_artwork"
+    }
+  ]
+}
