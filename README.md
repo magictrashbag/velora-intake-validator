@@ -69,7 +69,7 @@ The API tests run against real Postgres and check the properties that matter for
 
 Amounts are decimal **strings**, never JSON numbers.
 
-**Staff (review console)**, with separate tokens issued by `DATABASE_URL=... npm run staff -w @puente/api -- create <email> <reviewer|compliance_officer|admin>`:
+**Staff review console**: open `http://localhost:3000/staff` and sign in with a staff token. The API underneath uses separate tokens issued by `DATABASE_URL=... npm run staff -w @puente/api -- create <email> <reviewer|compliance_officer|admin>`:
 
 | Method | Path | Notes |
 |---|---|---|

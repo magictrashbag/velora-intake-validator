@@ -12,6 +12,7 @@ import { devRoutes } from './routes/dev.ts';
 import { cryptoRoutes } from './routes/crypto.ts';
 import { staffRoutes } from './routes/staff.ts';
 import { sanctionsRoutes } from './routes/sanctions.ts';
+import { consoleRoutes } from './routes/console.ts';
 import { withLocalDenylist } from './sanctions-lists.ts';
 
 export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider; screener: SanctionsScreener }
@@ -65,6 +66,7 @@ export async function buildApp(d: {
   await cryptoRoutes(app, deps);
   await staffRoutes(app, deps);
   await sanctionsRoutes(app, deps);
+  await consoleRoutes(app);
   if (d.config.devMode) await devRoutes(app, deps);
   return app;
 }
