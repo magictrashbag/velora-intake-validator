@@ -10,7 +10,8 @@
     "typecheck": "tsc -p .",
     "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
     "staff": "node --import tsx src/cli/staff.ts",
-    "worker": "node --import tsx src/workers/run.ts"
+    "worker": "node --import tsx src/workers/run.ts",
+    "jobs:daily": "node --import tsx src/jobs/run-daily.ts"
   },
   "dependencies": {
     "@puente/core": "0.1.0",

@@ -34,6 +34,8 @@ export interface FxRateProvider {
 export interface CustodyProvider {
   /** Omnibus on-chain stablecoin custody. Internal transfers never touch the chain. */
   createDepositAddress(userId: string, network: Network): Promise<string>;
+  /** Total USDC (minor units) held in our omnibus wallets, for daily reconciliation. */
+  getOmnibusBalance(): Promise<{ amountMinor: bigint; asOf: Date }>;
   withdraw(req: { idempotencyKey: string; network: Network; address: string; amountMinor: bigint }): Promise<{ providerRef: string }>;
 }
 

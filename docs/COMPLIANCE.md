@@ -119,19 +119,22 @@ An independent adversarial review of this code (Nov 2026) found 10 defects, incl
   - Append-only `review_actions`.
   - Held FX trades execute at the customer's original firm quote; the house carries the FX risk during review.
 - [ ] Review console **UI**, and staff SSO + hardware-key MFA (staff tokens are currently issued by `npm run staff -w @puente/api`)
-- [ ] Ongoing re-screening of all users and counterparties on list updates; retroactive address review when OFAC adds an address
-- [ ] Daily OFAC-report deadline alerting; annual blocked-property report export
+- [x] **Daily job** (`npm run jobs:daily -w @puente/api`): the full report is stored in append-only `job_runs`, and the job exits non-zero on any failure so the scheduler alerts.
+  - **Reconciliation:** every balance re-derived from ledger entries (this catches even trigger-bypassing edits); net zero per currency; routing invariant; `compliance_hold` vs. open cases; `payout_clearing` vs. in-flight withdrawals; `blocked_funds` vs. filed OFAC blocked-property amounts; `custody_float` vs. the custodian's omnibus balance.
+  - **Deadlines:** OFAC reports overdue (fails the run) or due within 3 business days; review cases past the 48h SLA; withdrawals flagged or unconfirmed after 24h.
+  - **Re-screening:** customers re-screened every 30 days, with each result kept in append-only `person_screenings`. A confirmed match freezes the account and opens a case; a potential match opens a case.
+- [ ] List-update-triggered re-screening (instead of only every 30 days); retroactive address review when OFAC adds a crypto address; annual blocked-property report export
+- [ ] Bs-partner reconciliation (`payout_clearing` VES) once a Bs payout partner exists
 - [ ] Transaction monitoring beyond the gate: rapid in/out, fan-in/fan-out, mule networks, P2P cycling
 - [ ] IP geolocation, VPN detection, device binding and step-up auth for sending
 - [ ] Travel Rule VASP-to-VASP messaging; ownership proof for self-hosted wallets (e.g. message signing)
-- [ ] Daily reconciliation: `custody_float` vs. custodian, `payout_clearing` vs. Bs partner, `blocked_funds` vs. OFAC filings
 - [x] Withdrawal worker (`src/workers/withdrawals.ts`):
   - Workers claim withdrawals with `SKIP LOCKED`, so several can run in parallel without sending anything twice.
   - Stale claims are re-sent with the same idempotency key.
   - Repeated failures are flagged `needs_attention`. The worker **never refunds on its own errors**: a timeout may still have sent the funds.
   - A signed confirm/fail webhook settles against `custody_float` or refunds the customer.
 - [ ] Real custodian integration + alerting on `needs_attention` withdrawals
-- [ ] An app DB role without superuser/DDL rights (DB triggers can be bypassed by a superuser), plus a daily job that re-derives every balance from ledger entries
+- [ ] An app DB role without superuser/DDL rights (DB triggers can be bypassed by a superuser; the daily job detects this after the fact)
 - [ ] Security: threat model, external pen test, secrets in KMS, DB role separation (app role cannot DDL), WAF/rate limits, incident response plan, bug bounty, SOC 2 readiness
 
 ## Sources

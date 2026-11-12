@@ -21,10 +21,14 @@ export function mockFxRates(rates: Partial<Record<`${Currency}/${Currency}`, str
 /**
  * Deterministic screening mock for development/tests ONLY. Production: an OFAC-list + blockchain-
  * analytics provider. Addresses ending in "dead" are treated as sanctioned, "beef" as high-risk.
- * Party screening returns 'pending' so nothing is auto-cleared.
  */
 export const mockScreener: SanctionsScreener = {
-  async screenPerson() { return { result: 'pending', providerRef: 'mock' }; },
+  // Names containing SANCTIONED / MAYBE screen as confirmed / potential matches.
+  async screenPerson(p) {
+    const n = p.fullName.toUpperCase();
+    const result = n.includes('SANCTIONED') ? 'confirmed_match' : n.includes('MAYBE') ? 'potential_match' : 'clear';
+    return { result, providerRef: `mock:${result}` };
+  },
   async screenAddress(_network, address) {
     const a = address.toLowerCase();
     const risk = a.endsWith('dead') ? 'sanctioned' : a.endsWith('beef') ? 'high_risk' : 'clear';
@@ -36,13 +40,15 @@ export const mockScreener: SanctionsScreener = {
 export function mockCustody() {
   const calls: { idempotencyKey: string; network: string; address: string; amountMinor: bigint }[] = [];
   let failNext = 0;
+  let omnibus = 0n;
   const provider: CustodyProvider = {
     async createDepositAddress() { return '0x' + '9'.repeat(40); },
+    async getOmnibusBalance() { return { amountMinor: omnibus, asOf: new Date() }; },
     async withdraw(req) {
       if (failNext > 0) { failNext--; throw new Error('custodian timeout'); }
       calls.push(req);
       return { providerRef: `mock-wd-${req.idempotencyKey}` };
     },
   };
-  return { provider, calls, failTimes: (n: number) => { failNext = n; } };
+  return { provider, calls, failTimes: (n: number) => { failNext = n; }, setOmnibus: (v: bigint) => { omnibus = v; } };
 }
