@@ -1,0 +1,14 @@
+{
+  "name": "puente",
+  "private": true,
+  "description": "USD stablecoin wallet, remittances, Bs<->USD exchange and payments for Venezuela (working name).",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run migrate -w @puente/api",
+    "dev:api": "npm run dev -w @puente/api",
+    "dev:mobile": "npm run start -w @puente/mobile"
+  }
+}
