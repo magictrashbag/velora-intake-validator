@@ -7,6 +7,9 @@ export interface Config {
   otpPepper: string;
   /** Shared secret for HMAC-signed custodian webhooks. */
   custodyWebhookSecret: string;
+  /** Which proxies may set X-Forwarded-For (comma-separated IPs/CIDRs of OUR load balancers).
+   *  Default: trust nobody, so clients cannot spoof the IP recorded in the audit log. */
+  trustProxy: string | false;
   sessionTtlHours: number;
   fxSpreadBps: number;
   fxQuoteTtlSeconds: number;
@@ -26,9 +29,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     devMode,
     otpPepper,
     custodyWebhookSecret,
+    trustProxy: env.TRUST_PROXY || false,
     sessionTtlHours: 12,
     fxSpreadBps: 150,
     fxQuoteTtlSeconds: 30,
-    policyVersion: 'placeholder-2026-11b',
+    policyVersion: 'placeholder-2026-11c',
   };
 }

@@ -1,5 +1,5 @@
 import {
-  evaluateTransfer, addBusinessDays, normalizeAddress, parseAmount, usdCentsEquivalent,
+  evaluateTransfer, requiresOfacReport, addBusinessDays, normalizeAddress, parseAmount, usdCentsEquivalent,
   type Network, type SanctionsScreener,
 } from '@puente/core';
 import type { Db } from './db.ts';
@@ -14,6 +14,8 @@ export interface DepositEvent {
   userId: string;
   network: Network;
   txHash: string;
+  /** Position of this transfer within the on-chain tx (log index / output index). */
+  logIndex: number;
   fromAddress: string;
   amount: string; // USDC decimal string
 }
@@ -27,17 +29,32 @@ export interface DepositResult { deposit_id: string; disposition: 'credited' | '
  *   high-risk / any review -> compliance_hold (released only by a reviewer)
  *   sanctioned source      -> blocked_funds + OFAC blocked-property report due in 10 business days
  *   other deny             -> compliance_hold (e.g. frozen user, unsupported network)
- * Idempotent on (network, tx_hash): a replayed webhook returns the original outcome.
+ * Idempotent on (network, tx_hash, log_index): a replayed webhook returns the original outcome;
+ * a "replay" whose user/amount/source differs is a conflict, never silently accepted.
  */
 export async function processCryptoDeposit(
   db: Db, cfg: Config, screener: SanctionsScreener, ev: DepositEvent,
 ): Promise<DepositResult> {
   const amount = parseAmount(ev.amount, 'USDC');
   const from = normalizeAddress(ev.network, ev.fromAddress);
+  const txHash = ev.network === 'solana' ? ev.txHash : ev.txHash.toLowerCase();
+  const key = [ev.network, txHash, ev.logIndex] as const;
 
-  const existing = await db.query('SELECT id, disposition FROM crypto_deposits WHERE network = $1 AND tx_hash = $2',
-    [ev.network, ev.txHash]);
-  if (existing.rows[0]) return { deposit_id: existing.rows[0].id, disposition: existing.rows[0].disposition, replayed: true };
+  const replayOf = async (q: Db | import('./db.ts').Tx) => {
+    const r = await q.query(
+      `SELECT id, disposition, user_id, amount_minor, from_address FROM crypto_deposits
+        WHERE network = $1 AND tx_hash = $2 AND log_index = $3`, [...key]);
+    const row = r.rows[0];
+    if (!row) return null;
+    if (row.user_id !== ev.userId || row.amount_minor !== amount.minor || row.from_address !== from) {
+      await audit(db, { action: 'deposit.replay_conflict', subject: row.id, details: { event: { ...ev, txHash } } });
+      throw new AppError(409, 'deposit_conflict');
+    }
+    return { deposit_id: row.id as string, disposition: row.disposition, replayed: true };
+  };
+
+  const existing = await replayOf(db);
+  if (existing) return existing;
 
   // Screening is a network call: do it BEFORE opening the DB transaction.
   const scr = await screener.screenAddress(ev.network, from);
@@ -48,8 +65,8 @@ export async function processCryptoDeposit(
          FROM users WHERE id = $1 FOR NO KEY UPDATE`, [ev.userId]);
     if (!u.rows[0]) throw new AppError(404, 'user_not_found');
     // Re-check under the lock in case of a concurrent duplicate webhook.
-    const dup = await tx.query('SELECT id, disposition FROM crypto_deposits WHERE network = $1 AND tx_hash = $2', [ev.network, ev.txHash]);
-    if (dup.rows[0]) return { deposit_id: dup.rows[0].id, disposition: dup.rows[0].disposition, replayed: true };
+    const dup = await replayOf(tx);
+    if (dup) return dup;
 
     await tx.query('INSERT INTO address_screenings (network, address, risk, provider_ref) VALUES ($1,$2,$3,$4)',
       [ev.network, from, scr.risk, scr.providerRef]);
@@ -64,8 +81,10 @@ export async function processCryptoDeposit(
       recentNearThresholdCount: 0,
     };
     const decision = evaluateTransfer(ctx);
+    // Any sanctions nexus (source address, the customer, embargoed residence) => BLOCK, never
+    // merely hold: held funds can be released by a reviewer, blocked property cannot.
     const disposition = decision.outcome === 'allow' ? 'credited'
-      : decision.reasons.includes('address_sanctioned') ? 'blocked' : 'held';
+      : requiresOfacReport(decision.reasons) ? 'blocked' : 'held';
 
     const target = disposition === 'credited'
       ? (await tx.query(`SELECT id FROM accounts WHERE owner_user_id = $1 AND currency = 'USDC'`, [ev.userId])).rows[0].id
@@ -76,9 +95,9 @@ export async function processCryptoDeposit(
       { accountId: target, currency: 'USDC', amount: amount.minor },
     ]);
     const dep = await tx.query<{ id: string }>(
-      `INSERT INTO crypto_deposits (user_id, network, tx_hash, from_address, amount_minor, disposition, ledger_txn_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [ev.userId, ev.network, ev.txHash, from, amount.minor.toString(), disposition, ledgerTxnId]);
+      `INSERT INTO crypto_deposits (user_id, network, tx_hash, log_index, from_address, amount_minor, disposition, ledger_txn_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [ev.userId, ev.network, txHash, ev.logIndex, from, amount.minor.toString(), disposition, ledgerTxnId]);
     const depositId = dep.rows[0]!.id;
 
     await tx.query(

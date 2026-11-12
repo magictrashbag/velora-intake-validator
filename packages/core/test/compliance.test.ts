@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  evaluateTransfer, DEFAULT_POLICY, requiresOfacReport, isNearThreshold,
+  evaluateTransfer, DEFAULT_POLICY, requiresOfacReport, isNearThreshold, customerFacingReasons,
   type Party, type TransferContext,
 } from '../src/compliance.ts';
 
@@ -50,8 +50,11 @@ test('frozen accounts cannot send or receive', () => {
   assert.equal(evaluateTransfer({ ...base, recipient: { ...ok, status: 'frozen' } }).outcome, 'deny');
 });
 
-test('embargoed jurisdictions: sender refused, recipient blocked and reportable', () => {
-  assert.deepEqual(evaluateTransfer({ ...base, sender: { ...ok, country: 'IR' } }).reasons, ['jurisdiction_not_supported']);
+test('embargoed jurisdictions: both sides blocked and reportable; sender told only "not supported"', () => {
+  const s = evaluateTransfer({ ...base, sender: { ...ok, country: 'IR' } });
+  assert.deepEqual(s.reasons, ['sender_jurisdiction_blocked']);
+  assert.ok(requiresOfacReport(s.reasons));
+  assert.deepEqual(customerFacingReasons(s.reasons), ['jurisdiction_not_supported']);
   const d = evaluateTransfer({ ...base, recipient: { ...ok, country: 'KP' } });
   assert.deepEqual(d.reasons, ['recipient_jurisdiction_blocked']);
   assert.ok(requiresOfacReport(d.reasons));
@@ -113,4 +116,10 @@ test('monitoring: new account high value and structuring go to review', () => {
   assert.ok(isNearThreshold(900_00n, 1_000_00n));
   assert.ok(!isNearThreshold(899_99n, 1_000_00n));
   assert.ok(!isNearThreshold(1_000_00n, 1_000_00n));
+});
+
+test('customer-facing reasons never leak internal codes, even alongside safe ones', () => {
+  assert.deepEqual(customerFacingReasons(['limit_daily']), ['limit_daily']);
+  assert.deepEqual(customerFacingReasons(['limit_daily', 'recipient_sanctions_match']), ['not_permitted']);
+  assert.deepEqual(customerFacingReasons([]), ['not_permitted']);
 });

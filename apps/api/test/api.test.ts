@@ -93,7 +93,7 @@ t('sanctions hits are blocked without tipping off the customer', async () => {
   assert.deepEqual(d.rows[0].reasons, ['recipient_sanctions_match'], 'full reason kept internally for audit');
 });
 
-t('potential screening match holds the transfer for review; no money moves', async () => {
+t('potential screening match holds the transfer for review: funds reserved, nothing delivered', async () => {
   const a = await verifiedUser(app);
   const b = await verifiedUser(app);
   await b.kyc({ screening: 'potential_match' });
@@ -101,8 +101,18 @@ t('potential screening match holds the transfer for review; no money moves', asy
   const r = await a.send(b.phone, '10');
   assert.equal(r.statusCode, 202);
   assert.equal(r.json().status, 'held_for_review');
-  assert.equal(await a.balance(), '50.000000');
+  assert.equal(await a.balance(), '40.000000', 'held amount is reserved in compliance_hold');
   assert.equal(await b.balance(), '0.000000');
+  const t = await db.query('SELECT hold_ledger_txn_id FROM transfers WHERE id = $1', [r.json().transfer_id]);
+  assert.ok(t.rows[0].hold_ledger_txn_id);
+});
+
+t('a transfer that would be held still needs the funds (no unfunded review items)', async () => {
+  const a = await verifiedUser(app, 2);
+  const b = await verifiedUser(app);
+  const r = await a.send(b.phone, '4000'); // would be held (>= US$3,000), but balance is 0
+  assert.equal(r.statusCode, 422);
+  assert.equal(r.json().error, 'insufficient_funds');
 });
 
 t('new accounts sending large amounts are held for review', async () => {
@@ -112,7 +122,75 @@ t('new accounts sending large amounts are held for review', async () => {
   await a.deposit('400');
   const r = await a.send(b.phone, '300');
   assert.equal(r.statusCode, 202);
-  assert.equal(await a.balance(), '400.000000');
+  assert.equal(await a.balance(), '100.000000');
+  assert.equal(await b.balance(), '0.000000');
+});
+
+t('limits round against the customer: 500.009999 USDC exceeds a 500.00 limit', async () => {
+  const a = await verifiedUser(app, 1);
+  const b = await verifiedUser(app);
+  await a.deposit('600');
+  const r = await a.send(b.phone, '500.009999');
+  assert.equal(r.statusCode, 403);
+  assert.deepEqual(r.json().reasons, ['limit_per_transaction', 'limit_daily']);
+});
+
+t('idempotency hash ignores JSON key order', async () => {
+  const a = await verifiedUser(app);
+  const b = await verifiedUser(app);
+  await a.deposit('10');
+  const h = { ...a.h, 'idempotency-key': 'order-key-0001', 'content-type': 'application/json' };
+  const r1 = await app.inject({ method: 'POST', url: '/v1/transfers', headers: h, payload: `{"to_phone":"${b.phone}","amount":"1","currency":"USDC"}` });
+  const r2 = await app.inject({ method: 'POST', url: '/v1/transfers', headers: h, payload: `{"currency":"USDC","amount":"1","to_phone":"${b.phone}"}` });
+  assert.equal(r2.json().transfer_id, r1.json().transfer_id);
+  assert.equal(await a.balance(), '9.000000');
+});
+
+t('bad input never 500s: oversized amounts are 400', async () => {
+  const a = await verifiedUser(app);
+  const b = await verifiedUser(app);
+  const r = await a.send(b.phone, '999999999999999');
+  assert.equal(r.statusCode, 400);
+  assert.equal(r.json().error, 'invalid_amount');
+});
+
+t('OTP start rate limit holds under concurrency', async () => {
+  const phone = '+584149998877';
+  const rs = await Promise.all(Array.from({ length: 12 }, () =>
+    app.inject({ method: 'POST', url: '/v1/auth/otp/start', payload: { phone } })));
+  assert.equal(rs.filter((r) => r.statusCode === 200).length, 5);
+  assert.ok(rs.every((r) => r.statusCode === 200 || r.statusCode === 429));
+});
+
+t('X-Forwarded-For is not trusted by default (audit IP cannot be spoofed)', async () => {
+  const phone = '+584147776655';
+  await app.inject({ method: 'POST', url: '/v1/auth/otp/start', payload: { phone }, headers: { 'x-forwarded-for': '6.6.6.6' } });
+  const r = await db.query(`SELECT host(ip) AS ip FROM audit_log WHERE action = 'auth.otp_started' AND subject = $1`, [phone]);
+  assert.notEqual(r.rows[0].ip, '6.6.6.6');
+});
+
+t('embargoed-country sender: denied, told only "not supported", OFAC report filed', async () => {
+  const a = await verifiedUser(app);
+  const b = await verifiedUser(app);
+  await a.deposit('20');
+  await a.kyc({ country: 'IR' });
+  const r = await a.send(b.phone, '5');
+  assert.equal(r.statusCode, 403);
+  assert.deepEqual(r.json().reasons, ['jurisdiction_not_supported']);
+  const rep = await db.query('SELECT report_type FROM ofac_reports WHERE transfer_id = $1', [r.json().transfer_id]);
+  assert.equal(rep.rows[0]?.report_type, 'rejected_transaction');
+});
+
+t('opposite-direction FX trades do not deadlock on the shared inventory', async () => {
+  const users = await Promise.all(Array.from({ length: 6 }, () => verifiedUser(app)));
+  for (const u of users) { await u.deposit('50'); await u.deposit('2000', 'VES'); }
+  const quotes = await Promise.all(users.map((u, i) => app.inject({
+    method: 'POST', url: '/v1/fx/quotes', headers: u.h,
+    payload: i % 2 ? { sell: 'USDC', buy: 'VES', amount: '5' } : { sell: 'VES', buy: 'USDC', amount: '200' },
+  })));
+  const execs = await Promise.all(users.map((u, i) => app.inject({
+    method: 'POST', url: `/v1/fx/quotes/${quotes[i]!.json().quote_id}/execute`, headers: u.h })));
+  assert.ok(execs.every((e) => e.statusCode === 201), JSON.stringify(execs.map((e) => e.json())));
 });
 
 t('daily limit counts prior volume', async () => {
@@ -188,7 +266,9 @@ t('database enforces double-entry, append-only and no-overdraft on its own', asy
     await assert.rejects(c.query(`UPDATE ledger_entries SET amount = amount * 2`), /append-only/);
     await assert.rejects(c.query(`DELETE FROM audit_log`), /append-only/);
     await assert.rejects(c.query(`TRUNCATE compliance_decisions CASCADE`), /append-only/);
-    await assert.rejects(c.query(`UPDATE accounts SET balance = -1 WHERE kind = 'user_wallet'`), /check constraint/);
+    await assert.rejects(c.query(`UPDATE accounts SET balance = 1000000000 WHERE kind = 'user_wallet'`), /only change via ledger/);
+    await assert.rejects(c.query(`UPDATE accounts SET owner_user_id = NULL, kind = 'fee_revenue' WHERE kind = 'user_wallet'`), /immutable/);
+    await assert.rejects(c.query(`DELETE FROM accounts WHERE kind = 'fee_revenue'`), /cannot be deleted/);
   } finally {
     c.release();
   }

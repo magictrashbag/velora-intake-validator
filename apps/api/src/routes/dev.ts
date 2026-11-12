@@ -37,6 +37,7 @@ export async function devRoutes(app: FastifyInstance, { db, config, screener }: 
         userId: req.user!.id,
         network,
         txHash: '0x' + randomBytes(32).toString('hex'),
+        logIndex: 0,
         fromAddress: req.body.from_address ?? '0x' + '1'.repeat(40),
         amount: req.body.amount,
       });

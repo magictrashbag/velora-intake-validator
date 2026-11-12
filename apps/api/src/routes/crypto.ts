@@ -66,6 +66,7 @@ export async function cryptoRoutes(app: FastifyInstance, { db, config, screener 
       idempotencyKey: key,
       body: b,
       counterpartyAddress: { network, address, risk: scr.risk },
+      debit: { currency: 'USDC', minor: amount.minor },
       ...(b.travel_rule ? {
         travelRuleBeneficiary: {
           beneficiaryName: b.travel_rule.beneficiary_name,
@@ -100,18 +101,19 @@ export async function cryptoRoutes(app: FastifyInstance, { db, config, screener 
    * `${timestamp}.${rawBody}` with a shared secret; stale timestamps are rejected (replay defence),
    * and (network, tx_hash) makes processing idempotent.
    */
-  app.post<{ Body: { customer_ref: string; network: string; tx_hash: string; from_address: string; amount: string } }>(
+  app.post<{ Body: { customer_ref: string; network: string; tx_hash: string; log_index: number; from_address: string; amount: string } }>(
     '/v1/webhooks/custody/deposits', {
       // Authenticate BEFORE validating the body, so unauthenticated callers learn nothing.
       preValidation: async (req) =>
         verifyWebhook(config.custodyWebhookSecret, req.headers['x-timestamp'], req.headers['x-signature'], (req as any).rawBody),
       schema: {
         body: {
-          type: 'object', required: ['customer_ref', 'network', 'tx_hash', 'from_address', 'amount'], additionalProperties: false,
+          type: 'object', required: ['customer_ref', 'network', 'tx_hash', 'log_index', 'from_address', 'amount'], additionalProperties: false,
           properties: {
             customer_ref: { type: 'string', format: 'uuid' },
             network: { type: 'string', maxLength: 20 },
             tx_hash: { type: 'string', minLength: 10, maxLength: 120 },
+            log_index: { type: 'integer', minimum: 0, maximum: 1000000 },
             from_address: { type: 'string', maxLength: 100 },
             amount: { type: 'string', maxLength: 32 },
           },
@@ -122,7 +124,8 @@ export async function cryptoRoutes(app: FastifyInstance, { db, config, screener 
       if (!isNetwork(b.network)) throw new AppError(400, 'network_not_supported');
       if (!isValidAddress(b.network, b.from_address)) throw new AppError(400, 'address_invalid');
       return processCryptoDeposit(db, config, screener, {
-        userId: b.customer_ref, network: b.network, txHash: b.tx_hash, fromAddress: b.from_address, amount: b.amount,
+        userId: b.customer_ref, network: b.network, txHash: b.tx_hash, logIndex: b.log_index,
+        fromAddress: b.from_address, amount: b.amount,
       });
     });
 }

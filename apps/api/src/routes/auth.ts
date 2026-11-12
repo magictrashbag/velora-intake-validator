@@ -19,16 +19,18 @@ export async function authRoutes(app: FastifyInstance, { db, config, sms }: Deps
       await audit(db, { action: 'auth.blocked_jurisdiction', subject: phone, ip: req.ip });
       throw new AppError(403, 'jurisdiction_not_supported');
     }
-    const recent = await db.query(
-      `SELECT count(*)::int AS n FROM otp_challenges WHERE phone = $1 AND created_at > now() - interval '1 hour'`,
-      [phone],
-    );
-    if (recent.rows[0].n >= MAX_CHALLENGES_PER_HOUR) throw new AppError(429, 'too_many_requests');
     const code = newOtpCode();
-    await db.query(
-      `INSERT INTO otp_challenges (phone, code_hash, expires_at) VALUES ($1,$2, now() + interval '5 minutes')`,
-      [phone, otpHash(config.otpPepper, phone, code)],
-    );
+    // Count-then-insert under a per-phone advisory lock, so concurrent requests can't exceed the limit.
+    await withTx(db, async (tx) => {
+      await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${phone}`]);
+      const recent = await tx.query(
+        `SELECT count(*)::int AS n FROM otp_challenges WHERE phone = $1 AND created_at > now() - interval '1 hour'`,
+        [phone]);
+      if (recent.rows[0].n >= MAX_CHALLENGES_PER_HOUR) throw new AppError(429, 'too_many_requests');
+      await tx.query(
+        `INSERT INTO otp_challenges (phone, code_hash, expires_at) VALUES ($1,$2, now() + interval '5 minutes')`,
+        [phone, otpHash(config.otpPepper, phone, code)]);
+    });
     await sms.sendOtp(phone, code);
     await audit(db, { action: 'auth.otp_started', subject: phone, ip: req.ip });
     return config.devMode ? { sent: true, dev_code: code } : { sent: true };

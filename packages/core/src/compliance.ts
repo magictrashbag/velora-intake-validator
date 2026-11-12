@@ -199,10 +199,22 @@ export function evaluateTransfer(ctx: TransferContext, policy: Policy = DEFAULT_
 
 function checkParty(role: string, p: Party, policy: Policy, deny: string[], review: string[]) {
   if (p.status !== 'active') deny.push(`${role}_${p.status}`);
-  if (policy.blockedCountries.has(p.country)) deny.push(role === 'sender' ? 'jurisdiction_not_supported' : `${role}_jurisdiction_blocked`);
+  if (policy.blockedCountries.has(p.country)) deny.push(`${role}_jurisdiction_blocked`);
   if (p.screening === 'confirmed_match') deny.push(`${role}_sanctions_match`);
   else if (p.screening === 'potential_match') review.push(`${role}_screening_potential_match`);
   else if (p.screening === 'pending') review.push(`${role}_screening_pending`);
+}
+
+/** Internal reason -> what the customer may be told. The sender already knows their own country. */
+const CUSTOMER_ALIASES: Record<string, string> = { sender_jurisdiction_blocked: 'jurisdiction_not_supported' };
+
+/**
+ * What a customer may see for a denial. If ANY reason is internal (screening, sanctions,
+ * monitoring), show only the generic code: a partial list could itself tip them off.
+ */
+export function customerFacingReasons(reasons: readonly string[]): string[] {
+  const mapped = reasons.map((r) => CUSTOMER_ALIASES[r] ?? r);
+  return mapped.length && mapped.every((r) => CUSTOMER_SAFE_REASONS.has(r)) ? mapped : ['not_permitted'];
 }
 
 /** Reasons that oblige us to file with OFAC (blocked or rejected transaction report). */

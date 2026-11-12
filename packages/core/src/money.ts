@@ -27,6 +27,7 @@ export function isCurrency(x: unknown): x is Currency {
 export class MoneyError extends Error {}
 
 const DECIMAL = /^(\d{1,15})(?:\.(\d+))?$/;
+export const MAX_MINOR = 10n ** 15n;
 
 /** Parse a user-supplied positive decimal string ("10", "10.5", "0.000001"). */
 export function parseAmount(input: string, currency: Currency): Money {
@@ -40,6 +41,8 @@ export function parseAmount(input: string, currency: Currency): Money {
   }
   const minor = BigInt(m[1]! + frac.padEnd(scale, '0'));
   if (minor <= 0n) throw new MoneyError('amount must be greater than zero');
+  // Keep every amount far inside Postgres bigint (9.2e18), including sums of many amounts.
+  if (minor > MAX_MINOR) throw new MoneyError('amount too large');
   return { currency, minor };
 }
 
@@ -59,9 +62,13 @@ export function rescaleDown(minor: bigint, fromScale: number, toScale: number): 
   return minor / 10n ** BigInt(fromScale - toScale);
 }
 
-/** USD-equivalent in cents, used for limits. USDC and USD are 1:1 by definition here. */
+/**
+ * USD-equivalent in cents, used for limits and thresholds. Rounds UP: when comparing against a
+ * limit, a fraction of a cent must count against the customer, never in their favour.
+ * USDC and USD are 1:1 by definition here.
+ */
 export function usdCentsEquivalent(money: Money): bigint | null {
   if (money.currency === 'USD') return money.minor;
-  if (money.currency === 'USDC') return rescaleDown(money.minor, 6, 2);
+  if (money.currency === 'USDC') return (money.minor + 9_999n) / 10_000n;
   return null; // VES needs an FX rate; see fx.ts
 }

@@ -20,7 +20,7 @@
 | Layer | Mechanism |
 |---|---|
 | Domain | `planConversion()` in `packages/core/src/routing.ts` always emits X→USDC→Y legs |
-| Database (ledger) | Deferred constraint trigger `ledger_entries_routed`: a ledger transaction touches one currency, or two currencies one of which is USDC. Otherwise it is **rejected at COMMIT**, even for hand-written SQL |
+| Database (ledger) | Deferred constraint trigger `ledger_entries_routed`, which runs at COMMIT even for hand-written SQL:<br>• Only `fx` transactions may change currency, and each must be exactly two currencies, one of them USDC.<br>• Only `fx` transactions may touch the FX inventory.<br>• Every other transaction must be single-currency.<br>So a conversion can't be smuggled through as two separate single-currency postings either. |
 | Database (quotes) | `fx_quotes_routed` CHECK: every quote has USDC on one side |
 
 **Which stablecoin:** USDC, not USDT, even though USDT dominates Venezuelan P2P.
@@ -79,7 +79,7 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 | 3 | Party sanctions screening, both sides (pending/potential → review, match → deny) | `checkParty` | ✓ |
 | 4 | Embargoed jurisdictions (sign-up + gate) | `jurisdiction.ts` | ✓ |
 | 5 | Address screening, fail-closed, evidence kept | `deposits.ts`, `routes/crypto.ts` | ✓ |
-| 6 | Sanctioned deposits blocked (not credited, not bounced) + OFAC report due | `deposits.ts` | ✓ |
+| 6 | Any sanctions nexus on a deposit (source address, the customer, embargoed residence) → **blocked**, never merely held, + OFAC report due | `deposits.ts` | ✓ |
 | 7 | Deposits for not-yet-screened customers held | gate review → `compliance_hold` | ✓ |
 | 8 | Travel Rule ≥ US$1,000; originator from KYC only | gate + `movement.ts` | ✓ |
 | 9 | Structuring (3+ transfers just under a threshold in 24h) → review | `isNearThreshold` | ✓ |
@@ -88,11 +88,19 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 | 12 | No tipping off: if *any* reason is internal, the customer sees only `not_permitted` | `CUSTOMER_SAFE_REASONS` | ✓ |
 | 13 | USDC-routing invariant (DB) | `002_crypto_compliance.sql` | ✓ |
 | 14 | Double-entry, append-only, no overdraft (DB) | `001_init.sql` | ✓ |
-| 15 | Idempotency: transfers (key + body hash), deposits (network + tx hash), FX (quote id) | ✓ | ✓ |
+| 15 | Idempotency: transfers (key + canonical body hash), deposits (network + normalised tx hash + log index; a mismatched replay is a 409, never dropped), FX (quote id) | ✓ | ✓ |
+| 15a | Funds checked **before** the gate: an unfunded request can't be used to probe screening results, and files nothing | `movement.ts` | ✓ |
+| 15b | Held transfers **reserve** their funds in `compliance_hold`, so approval can never find them gone | `movement.ts` | ✓ |
+| 15c | 3 sanctions-related denials in 24h → account auto-frozen | `movement.ts` | ✓ |
+| 15d | Limits/thresholds compare USD **rounded up**; amounts capped far inside bigint | `money.ts` | ✓ |
+| 15e | Balances change **only** via ledger entries; account identity immutable; accounts undeletable (DB trigger) | `003_hardening.sql` | ✓ |
+| 15f | Client IP from `X-Forwarded-For` only if the proxy is listed in `TRUST_PROXY` (audit evidence can't be spoofed) | `config.ts` | ✓ |
 | 16 | Withdrawal outbox: debit and send-instruction commit atomically | `crypto_withdrawals` | ✓ |
 | 17 | Webhooks: HMAC + 5-min replay window, authenticated before parsing the schema | `routes/crypto.ts` | ✓ |
 | 18 | Production refuses to start with mock providers or missing secrets; dev routes absent | `app.ts`, `config.ts` | ✓ |
 | 19 | Every decision stored with full inputs + policy version | `compliance_decisions` | ✓ |
+
+An independent adversarial review of this code (Nov 2026) found 10 defects, including a sanctioned customer's deposit landing in a releasable hold, double-credit via tx-hash letter case, and probing screening results with an empty wallet. All 10 are fixed, each with a regression test.
 
 **Every number in `DEFAULT_POLICY` is a placeholder** owned by the compliance officer. Changing one requires bumping `policyVersion` in `apps/api/src/config.ts`, so every past decision can be explained under the policy that produced it.
 
@@ -104,7 +112,8 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 - [ ] Partner contracts: two per rail (custody, on-ramp, Bs payout, screening/analytics)
 
 **Engineering**
-- [ ] **Review console**: release or deny held transfers and `compliance_hold` funds, four-eyes approval, audit-logged
+- [ ] **Review console**: release or deny held transfers (the reserve is already in `compliance_hold`; release = `hold_release` leg + the original posting) and held deposits, four-eyes approval, audit-logged. Held FX trades must be re-quoted on release
+- [ ] Unfreeze workflow for auto-frozen accounts (compliance officer only)
 - [ ] Ongoing re-screening of all users and counterparties on list updates; retroactive address review when OFAC adds an address
 - [ ] Daily OFAC-report deadline alerting; annual blocked-property report export
 - [ ] Transaction monitoring beyond the gate: rapid in/out, fan-in/fan-out, mule networks, P2P cycling
@@ -112,6 +121,7 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 - [ ] Travel Rule VASP-to-VASP messaging; ownership proof for self-hosted wallets (e.g. message signing)
 - [ ] Daily reconciliation: `custody_float` vs. custodian, `payout_clearing` vs. Bs partner, `blocked_funds` vs. OFAC filings
 - [ ] Withdrawal worker (outbox → custodian) with confirmation tracking
+- [ ] An app DB role without superuser/DDL rights (DB triggers can be bypassed by a superuser), plus a daily job that re-derives every balance from ledger entries
 - [ ] Security: threat model, external pen test, secrets in KMS, DB role separation (app role cannot DDL), WAF/rate limits, incident response plan, bug bounty, SOC 2 readiness
 
 ## Sources

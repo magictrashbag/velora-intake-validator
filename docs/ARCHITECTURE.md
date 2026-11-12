@@ -29,10 +29,11 @@ Every transfer of any kind goes through `executeGatedMovement` (`apps/api/src/mo
 
 1. Lock the sender row (`FOR NO KEY UPDATE`). This makes one sender's operations run one at a time, so idempotency checks and rolling limits are race-free.
 2. **Idempotency:** the same `Idempotency-Key` with the same body replays the stored result. The same key with a different body is rejected.
-3. Compute rolling 24h/30d volume, then run the **compliance gate**, which returns `allow`, `review` or `deny`.
-4. If allowed, lock the wallets (in a fixed id order, so there are no deadlocks), check funds, and post balanced ledger legs.
-5. Record the transfer, the full compliance decision (inputs + reasons + policy version) and an audit event.
-6. Return a customer-safe result. Screening reasons are **never** shown to the customer, to avoid tipping off.
+3. **Funds check**, before the gate, so an unfunded request learns nothing about screening.
+4. Compute rolling 24h/30d volume, then run the **compliance gate**, which returns `allow`, `review` or `deny`.
+5. If allowed, lock the wallets (in a fixed id order, so there are no deadlocks) and post balanced ledger legs. If the gate says review, **reserve** the amount in `compliance_hold`.
+6. Record the transfer, the full compliance decision (inputs + reasons + policy version), any Travel Rule record and any OFAC report owed, plus an audit event. Repeated sanctions hits freeze the account.
+7. Return a customer-safe result. Screening reasons are **never** shown to the customer, to avoid tipping off.
 
 ## Conversions route through USDC
 
@@ -54,7 +55,7 @@ Every transfer of any kind goes through `executeGatedMovement` (`apps/api/src/mo
 Double-entry, signed integer minor units (`bigint`), in `db/migrations/001_init.sql`:
 
 - `ledger_entries` per transaction must sum to zero per currency. This is checked by a **deferred constraint trigger at COMMIT**.
-- `accounts.balance` is maintained by trigger. A `CHECK` prevents any user wallet going negative, even through a manual SQL query.
+- `accounts.balance` is maintained by trigger and can't be changed any other way (`accounts_guard`). A `CHECK` prevents any user wallet going negative.
 - `ledger_*`, `compliance_decisions` and `audit_log` are **append-only**: UPDATE, DELETE and TRUNCATE all raise. Corrections are new reversing transactions.
 - System accounts (`custody_float`, `fx_inventory`, `payout_clearing`, `fee_revenue`, `compliance_hold`, `blocked_funds`) are the other side of every external flow. Reconciliation means comparing `custody_float` against the custodian's statement every day.
 

@@ -46,6 +46,7 @@ export async function transferRoutes(app: FastifyInstance, { db, config }: Deps)
       idempotencyKey: key,
       body: req.body,
       ip: req.ip,
+      debit: { currency: amount.currency, minor: amount.minor },
       post: async (tx) => {
         // Lock in a stable order (by id) to avoid deadlocks between A->B and B->A.
         const [first, second] = [me.id, recipientId].sort();

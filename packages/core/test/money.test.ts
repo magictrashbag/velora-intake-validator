@@ -15,6 +15,8 @@ test('rejects anything ambiguous instead of rounding', () => {
     assert.throws(() => parseAmount(bad, 'USDC'), MoneyError, bad);
   }
   assert.throws(() => parseAmount('1.001', 'VES'), /at most 2 decimal/);
+  assert.throws(() => parseAmount('999999999999999', 'USDC'), /too large/, 'would overflow Postgres bigint');
+  assert.equal(parseAmount('1000000000', 'USDC').minor, 10n ** 15n);
 });
 
 test('formats round-trip', () => {
@@ -23,8 +25,10 @@ test('formats round-trip', () => {
   assert.equal(formatAmount({ currency: 'VES', minor: -5n }), '-0.05');
 });
 
-test('USD equivalent for limits rounds down', () => {
-  assert.equal(usdCentsEquivalent({ currency: 'USDC', minor: 1_999_999n }), 199n);
+test('USD equivalent for limits rounds UP (never in the customer\'s favour)', () => {
+  assert.equal(usdCentsEquivalent({ currency: 'USDC', minor: 1_990_000n }), 199n);
+  assert.equal(usdCentsEquivalent({ currency: 'USDC', minor: 1_990_001n }), 200n);
+  assert.equal(usdCentsEquivalent(parseAmount('500.009999', 'USDC')), 50001n);
   assert.equal(usdCentsEquivalent({ currency: 'VES', minor: 100n }), null);
 });
 

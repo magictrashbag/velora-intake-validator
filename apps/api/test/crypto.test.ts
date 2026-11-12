@@ -52,6 +52,19 @@ t('ROUTING: the database refuses any conversion that does not go through USDC', 
       [vesFx, 'VES', -40], [vesFloat, 'VES', 40]]), /without routing through USDC/);
     // A proper leg (VES <-> USDC) commits.
     await legs([[vesFx, 'VES', -40], [vesFloat, 'VES', 40], [usdcFx, 'USDC', -1], [usdcFloat, 'USDC', 1]]);
+    // Splitting a USD->VES conversion into two single-currency postings is also refused.
+    const single = async (kind: string, entries: [string, string, number][]) => {
+      await c.query('BEGIN');
+      const tx = (await c.query(`INSERT INTO ledger_transactions (kind, description) VALUES ($1,'t') RETURNING id`, [kind])).rows[0].id;
+      for (const [id, cur, amt] of entries) {
+        await c.query(`INSERT INTO ledger_entries (txn_id, account_id, currency, amount) VALUES ($1,$2,$3,$4)`, [tx, id, cur, amt]);
+      }
+      return c.query('COMMIT');
+    };
+    await assert.rejects(single('adjustment', [[vesFx, 'VES', -40], [vesFloat, 'VES', 40]]), /not an fx transaction/);
+    await assert.rejects(single('fx', [[vesFx, 'VES', -40], [vesFloat, 'VES', 40]]), /without routing through USDC/);
+    await assert.rejects(single('deposit', [[usdFloat, 'USD', -1], [usdFloat, 'USD', 1], [vesFloat, 'VES', -1], [vesFloat, 'VES', 1]]),
+      /multi-currency non-fx/);
   } finally {
     await c.query('ROLLBACK').catch(() => {});
     c.release();
@@ -95,12 +108,37 @@ t('withdrawal to a sanctioned address: blocked, nothing moves, OFAC report due, 
   assert.equal(ob.rowCount, 0);
 });
 
-t('withdrawal to a high-risk address is held for review', async () => {
+t('withdrawal to a high-risk address is held for review, funds reserved, nothing queued', async () => {
   const u = await verifiedUser(app);
   await u.deposit('100');
   const r = await withdraw(app, u, { network: 'base', address: HIGH_RISK, amount: '10' });
   assert.equal(r.statusCode, 202);
-  assert.equal(await u.balance(), '100.000000');
+  assert.equal(await u.balance(), '90.000000');
+  assert.equal((await db.query('SELECT 1 FROM crypto_withdrawals WHERE transfer_id = $1', [r.json().transfer_id])).rowCount, 0);
+});
+
+t('no free screening oracle: an unfunded customer gets the same answer for any address, and nothing is filed', async () => {
+  const u = await verifiedUser(app);
+  const codes = [];
+  for (const address of [CLEAN, SANCTIONED, HIGH_RISK]) {
+    const r = await withdraw(app, u, { network: 'polygon', address, amount: '10' });
+    codes.push(`${r.statusCode}:${r.json().error}`);
+  }
+  assert.deepEqual(codes, ['422:insufficient_funds', '422:insufficient_funds', '422:insufficient_funds']);
+  const reps = await db.query(`SELECT count(*)::int AS n FROM ofac_reports o JOIN users x ON x.id = o.user_id WHERE x.phone = $1`, [u.phone]);
+  assert.equal(reps.rows[0].n, 0);
+});
+
+t('repeated attempts to reach a sanctioned address freeze the account', async () => {
+  const u = await verifiedUser(app);
+  await u.deposit('100');
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await withdraw(app, u, { network: 'polygon', address: SANCTIONED, amount: '1' })).statusCode, 403);
+  }
+  const st = await db.query('SELECT status FROM users WHERE phone = $1', [u.phone]);
+  assert.equal(st.rows[0].status, 'frozen');
+  const next = await withdraw(app, u, { network: 'polygon', address: CLEAN, amount: '1' });
+  assert.equal(next.statusCode, 403);
 });
 
 t('withdrawal input validation: unsupported network, malformed address', async () => {
@@ -159,6 +197,15 @@ t('large inbound deposits are held for review', async () => {
   assert.equal((await u.deposit('3000', 'USDC', CLEAN)).json().disposition, 'held');
 });
 
+t('a sanctioned CUSTOMER\'s deposit is blocked (not merely held) and reported, even from a clean address', async () => {
+  const u = await login(app);
+  await u.kyc({ screening: 'confirmed_match' });
+  const r = await u.deposit('50', 'USDC', CLEAN);
+  assert.equal(r.json().disposition, 'blocked');
+  const rep = await db.query('SELECT report_type FROM ofac_reports WHERE deposit_id = $1', [r.json().deposit_id]);
+  assert.equal(rep.rows[0]?.report_type, 'blocked_property');
+});
+
 t('deposits: clean credited, high-risk held, sanctioned blocked with OFAC blocked-property report', async () => {
   const u = await login(app);
   await u.kyc({ screening: 'clear' }); // tier 0 is fine for RECEIVING once screened
@@ -181,7 +228,9 @@ t('custodian webhook: HMAC-authenticated, replay-safe, idempotent per tx hash', 
   const u = await login(app);
   await u.kyc({ screening: 'clear' });
   const userId = (await db.query('SELECT id FROM users WHERE phone = $1', [u.phone])).rows[0].id;
-  const body = JSON.stringify({ customer_ref: userId, network: 'base', tx_hash: '0x' + 'ab'.repeat(32), from_address: CLEAN, amount: '25' });
+  const hash = '0x' + 'ab'.repeat(32);
+  const ev = (o: object = {}) => JSON.stringify({ customer_ref: userId, network: 'base', tx_hash: hash, log_index: 0, from_address: CLEAN, amount: '25', ...o });
+  const body = ev();
   const now = String(Math.floor(Date.now() / 1000));
   const send = (headers: Record<string, string>) => app.inject({
     method: 'POST', url: '/v1/webhooks/custody/deposits', payload: body, headers: { 'content-type': 'application/json', ...headers },
@@ -204,6 +253,18 @@ t('custodian webhook: HMAC-authenticated, replay-safe, idempotent per tx hash', 
   const again = await send({ 'x-timestamp': now, 'x-signature': signWebhook(secret, now, body) });
   assert.equal(again.json().replayed, true);
   assert.equal(await u.balance(), '25.000000');
+
+  const signed = (b: string) => app.inject({ method: 'POST', url: '/v1/webhooks/custody/deposits', payload: b,
+    headers: { 'content-type': 'application/json', 'x-timestamp': now, 'x-signature': signWebhook(secret, now, b) } });
+  // Same hash in different letter case is the SAME event: no double credit.
+  assert.equal((await signed(ev({ tx_hash: hash.toUpperCase().replace('0X', '0x') }))).json().replayed, true);
+  // Same tx, different amount at the same position: conflict, never silently accepted or dropped.
+  assert.equal((await signed(ev({ amount: '99' }))).statusCode, 409);
+  // A second transfer inside the same on-chain tx (different log index) IS credited.
+  assert.equal((await signed(ev({ log_index: 1, amount: '5' }))).json().disposition, 'credited');
+  assert.equal(await u.balance(), '30.000000');
+  // Malformed amount from the custodian is a 400, not a 500 retry loop.
+  assert.equal((await signed(ev({ log_index: 2, amount: '1.0000001' }))).statusCode, 400);
 });
 
 t('global invariants hold after all crypto flows', async () => {

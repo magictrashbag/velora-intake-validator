@@ -1,5 +1,5 @@
-import Fastify, { type FastifyInstance } from 'fastify';
-import type { FxRateProvider, SanctionsScreener } from '@puente/core';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { MoneyError, type FxRateProvider, type SanctionsScreener } from '@puente/core';
 import type { Config } from './config.ts';
 import type { Db } from './db.ts';
 import { AppError } from './errors.ts';
@@ -23,14 +23,15 @@ export async function buildApp(d: {
   const deps: Deps = {
     db: d.db, config: d.config, sms: d.sms ?? mockSms, fx: d.fx ?? mockFxRates(), screener: d.screener ?? mockScreener,
   };
-  const app = Fastify({
+  const opts: FastifyServerOptions = {
     logger: d.config.devMode ? false : {
       // Never log credentials or OTP codes.
       redact: ['req.headers.authorization', 'req.headers["idempotency-key"]', 'req.body.code'],
     },
     bodyLimit: 16 * 1024,
-    trustProxy: true,
-  });
+    trustProxy: d.config.trustProxy,
+  };
+  const app = Fastify(opts);
 
   // Keep the raw body for webhook signature verification.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -42,6 +43,7 @@ export async function buildApp(d: {
 
   app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof AppError) return reply.code(err.status).send({ error: err.code, message: err.message, ...err.extra });
+    if (err instanceof MoneyError) return reply.code(400).send({ error: 'invalid_amount', message: err.message });
     if (err.validation) return reply.code(400).send({ error: 'invalid_request', message: err.message });
     // Deadlock / serialization failure: nothing was committed; safe for the client to retry
     // with the SAME idempotency key.

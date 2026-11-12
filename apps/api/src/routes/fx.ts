@@ -75,11 +75,17 @@ export async function fxRoutes(app: FastifyInstance, { db, config, fx }: Deps) {
         idempotencyKey: `fxq:${q.id}`,
         body: { quote_id: q.id },
         ip: req.ip,
+        debit: { currency: sell, minor: sellMinor },
+        precheck: async () => { if (!q.live) throw new AppError(409, 'quote_expired'); },
         post: async (tx) => {
-          if (!q.live) throw new AppError(409, 'quote_expired');
           const from = await lockWallet(tx, me.id, sell);
           const to = await lockWallet(tx, me.id, buy);
           if (from.balance < sellMinor) throw new AppError(422, 'insufficient_funds');
+          // Lock the shared FX inventory rows in a FIXED order (by currency) so opposite-direction
+          // trades can't deadlock on them.
+          await tx.query(
+            `SELECT id FROM accounts WHERE owner_user_id IS NULL AND kind = 'fx_inventory' AND currency = ANY($1)
+              ORDER BY currency FOR NO KEY UPDATE`, [[sell, buy]]);
           return postLedgerTxn(tx, 'fx', `Exchange ${sell}->${buy}`, [
             { accountId: from.id, currency: sell, amount: -sellMinor },
             { accountId: await systemAccount(tx, 'fx_inventory', sell), currency: sell, amount: sellMinor },
