@@ -123,3 +123,16 @@ test('customer-facing reasons never leak internal codes, even alongside safe one
   assert.deepEqual(customerFacingReasons(['limit_daily', 'recipient_sanctions_match']), ['not_permitted']);
   assert.deepEqual(customerFacingReasons([]), ['not_permitted']);
 });
+
+test('funnel pattern: many sources in, most of it straight out to third parties -> review', () => {
+  const mule: TransferContext = { ...withdrawal, inboundLast24hUsdCents: 1_000_00n, inboundDistinctSources24h: 4, amountUsdCents: 800_00n };
+  assert.deepEqual(evaluateTransfer(mule), { outcome: 'review', reasons: ['funnel_pass_through'] });
+  // Below the ratio, too few sources, or too little money: no flag.
+  assert.equal(evaluateTransfer({ ...mule, amountUsdCents: 799_99n }).outcome, 'allow');
+  assert.equal(evaluateTransfer({ ...mule, inboundDistinctSources24h: 2 }).outcome, 'allow');
+  assert.equal(evaluateTransfer({ ...mule, inboundLast24hUsdCents: 499_99n, amountUsdCents: 499_99n }).outcome, 'allow');
+  // Prior outflow counts toward the ratio.
+  assert.equal(evaluateTransfer({ ...mule, amountUsdCents: 100_00n, sentLast24hUsdCents: 700_00n }).outcome, 'review');
+  // Cashing out a remittance to a bank account is the normal use case.
+  assert.equal(evaluateTransfer({ ...mule, kind: 'payout_bank', recipientBankCode: '0105', counterpartyAddress: undefined }).outcome, 'allow');
+});

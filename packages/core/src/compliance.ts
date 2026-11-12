@@ -55,6 +55,12 @@ export interface Policy {
   /** N or more recent transfers just under a reporting/review threshold => possible structuring. */
   structuringCount: number;
   /**
+   * Funnel / mule pattern: money collected from several sources and pushed straight out to
+   * third parties. Cashing out a remittance to a bank (payout_bank) or exchanging (fx) is the
+   * normal use case and is NOT covered.
+   */
+  funnel: { minSources: number; minInboundUsdCents: bigint; outboundRatioPct: bigint };
+  /**
    * Venezuelan bank codes of Government-of-Venezuela–owned banks (blocked under EO 13884 by
    * default). As of 2026, OFAC General Licenses (GL 16C: personal remittances; GL 57, Apr 2026:
    * financial services with NAMED state banks) authorize much of this activity, so the default
@@ -78,6 +84,7 @@ export const DEFAULT_POLICY: Policy = {
   newAccountDays: 7,
   newAccountReviewAboveUsdCents: 300_00n,
   structuringCount: 3,
+  funnel: { minSources: 3, minInboundUsdCents: 500_00n, outboundRatioPct: 80n },
   govBankCodes: {
     '0102': 'Banco de Venezuela (state-owned)',
     '0163': 'Banco del Tesoro (state-owned)',
@@ -112,6 +119,9 @@ export interface TransferContext {
   sentLast30dUsdCents: bigint;
   /** Sender's transfers in the last 24h that landed within 10% below a threshold. */
   recentNearThresholdCount: number;
+  /** Money that reached the sender in the last 24h (credited deposits + received P2P) and from how many distinct sources. */
+  inboundLast24hUsdCents?: bigint;
+  inboundDistinctSources24h?: number;
 }
 
 export type Decision =
@@ -191,6 +201,15 @@ export function evaluateTransfer(ctx: TransferContext, policy: Policy = DEFAULT_
   const nearNow = isNearThreshold(ctx.amountUsdCents, policy.travelRuleThresholdUsdCents) ||
     isNearThreshold(ctx.amountUsdCents, policy.reviewAboveUsdCents);
   if (nearNow && ctx.recentNearThresholdCount + 1 >= policy.structuringCount) review.push('possible_structuring');
+
+  if (ctx.kind === 'p2p' || ctx.kind === 'crypto_withdrawal') {
+    const inbound = ctx.inboundLast24hUsdCents ?? 0n;
+    const f = policy.funnel;
+    if ((ctx.inboundDistinctSources24h ?? 0) >= f.minSources && inbound >= f.minInboundUsdCents &&
+        (ctx.sentLast24hUsdCents + ctx.amountUsdCents) * 100n >= inbound * f.outboundRatioPct) {
+      review.push('funnel_pass_through');
+    }
+  }
 
   if (deny.length) return { outcome: 'deny', reasons: deny };
   if (review.length) return { outcome: 'review', reasons: review };

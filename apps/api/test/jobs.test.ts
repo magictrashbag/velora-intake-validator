@@ -119,3 +119,75 @@ t('re-screening: confirmed match freezes + opens a case; potential match opens a
   const ev = await db.query('SELECT count(*)::int n FROM person_screenings WHERE user_id = $1', [G.id]);
   assert.equal(ev.rows[0].n, 1);
 });
+
+t('confirmed match by re-screening blocks the wallet, files an OFAC report and fails the run', async () => {
+  const u = await verifiedUser(app);
+  await u.deposit('40');
+  await u.kyc({ legal_name: 'Otro SANCTIONED Cliente' });
+  const uid = (await db.query('SELECT id FROM users WHERE phone = $1', [u.phone])).rows[0].id;
+  const r = await run();
+  assert.equal(r.ok, false);
+  assert.ok(r.reconciliation.issues.includes(`confirmed_sanctions_match:${uid}`));
+  assert.equal(await u.balance(), '0.000000');
+  const rep = await db.query(`SELECT report_type, amount_minor FROM ofac_reports WHERE user_id = $1 AND account_id IS NOT NULL`, [uid]);
+  assert.deepEqual(rep.rows[0], { report_type: 'blocked_property', amount_minor: 40_000_000n });
+  // ...and the books still reconcile: blocked funds == reported.
+  assert.ok(!r.reconciliation.issues.some((i) => i.startsWith('blocked_funds_unreported')));
+});
+
+t('re-screening never downgrades a confirmed match; officers cannot unfreeze it', async () => {
+  const u = await verifiedUser(app);
+  await u.kyc({ legal_name: 'Tercer SANCTIONED Cliente' });
+  const uid = (await db.query('SELECT id FROM users WHERE phone = $1', [u.phone])).rows[0].id;
+  await run();
+  // Name changes / vendor variance: the next screening comes back clean.
+  await u.kyc({ legal_name: 'Nombre Distinto' });
+  await db.query(`UPDATE users SET screened_at = now() - interval '40 days', screening_attempted_at = NULL WHERE id = $1`, [uid]);
+  await run();
+  const st = await db.query('SELECT status, screening FROM users WHERE id = $1', [uid]);
+  assert.deepEqual(st.rows[0], { status: 'frozen', screening: 'confirmed_match' });
+  const { issueStaffToken } = await import('../src/staff.ts');
+  const o1 = { authorization: `Bearer ${(await issueStaffToken(db, 'o1@puente.test', 'compliance_officer')).token}` };
+  const o2 = { authorization: `Bearer ${(await issueStaffToken(db, 'o2@puente.test', 'compliance_officer')).token}` };
+  const c = (await db.query(`SELECT id FROM review_cases WHERE subject_id = $1 AND status IN ('open','awaiting_second_approval')`, [uid])).rows[0];
+  const act = (h: object) => app.inject({ method: 'POST', url: `/v1/staff/cases/${c.id}/approve`, headers: h as any, payload: { note: 'requesting unfreeze' } });
+  await act(o1);
+  const r = await act(o2);
+  assert.equal(r.statusCode, 409);
+  assert.deepEqual(r.json().refused_reasons, ['user_sanctions_match']);
+});
+
+t('stalled or abandoned withdrawals are surfaced', async () => {
+  const u = await verifiedUser(app);
+  await u.deposit('10');
+  const w = await withdraw(app, u, { network: 'polygon', address: CLEAN, amount: '1' });
+  await db.query(`UPDATE crypto_withdrawals SET updated_at = now() - interval '2 hours' WHERE transfer_id = $1`, [w.json().transfer_id]);
+  const r = await run();
+  assert.ok(r.withdrawals.stalled_1h.some((x) => x.transfer_id === w.json().transfer_id));
+  // A claim lost at the attempt limit is flagged by the worker instead of disappearing.
+  await db.query(`UPDATE crypto_withdrawals SET status = 'sending', attempts = 5, claimed_at = now() - interval '1 hour' WHERE transfer_id = $1`, [w.json().transfer_id]);
+  const { runWithdrawalWorker } = await import('../src/workers/withdrawals.ts');
+  const wr = await runWithdrawalWorker(db, mockCustody().provider, { maxAttempts: 5 });
+  assert.ok(wr.flagged >= 1);
+  const row = await db.query('SELECT needs_attention FROM crypto_withdrawals WHERE transfer_id = $1', [w.json().transfer_id]);
+  assert.equal(row.rows[0].needs_attention, true);
+});
+
+t('custody reconciliation tolerates withdrawals that have left but are not yet confirmed', async () => {
+  // Drain other in-flight rows so this test controls the window.
+  await db.query(`UPDATE crypto_withdrawals SET needs_attention = true WHERE status IN ('queued','sending')`);
+  const u = await verifiedUser(app);
+  await u.deposit('50');
+  const w = await withdraw(app, u, { network: 'polygon', address: CLEAN, amount: '20' });
+  await db.query(`UPDATE crypto_withdrawals SET status = 'broadcast', needs_attention = false WHERE transfer_id = $1`, [w.json().transfer_id]);
+  const f = (await db.query(`SELECT balance FROM accounts WHERE owner_user_id IS NULL AND kind = 'custody_float' AND currency = 'USDC'`)).rows[0].balance as bigint;
+  const inflight = (await db.query(`SELECT coalesce(sum(amount_minor),0)::bigint s FROM crypto_withdrawals WHERE status IN ('sending','broadcast')`)).rows[0].s as bigint;
+  for (const omnibus of [-f, -f - inflight]) {
+    const c = mockCustody(); c.setOmnibus(omnibus);
+    const r = await runDailyJobs(db, { custody: c.provider, screener: mockScreener });
+    assert.ok(!r.reconciliation.issues.some((i) => i.startsWith('custody_mismatch')), `omnibus ${omnibus}: ${r.reconciliation.issues}`);
+  }
+  const c = mockCustody(); c.setOmnibus(-f - inflight - 1n);
+  const bad = await runDailyJobs(db, { custody: c.provider, screener: mockScreener });
+  assert.ok(bad.reconciliation.issues.some((i) => i.startsWith('custody_mismatch')));
+});

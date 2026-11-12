@@ -200,6 +200,20 @@ t('opposite-direction FX trades do not deadlock on the shared inventory', async 
   assert.ok(execs.every((e) => e.statusCode === 201), JSON.stringify(execs.map((e) => e.json())));
 });
 
+t('funnel/mule pattern: money in from 3+ sources pushed straight back out is held', async () => {
+  const mule = await verifiedUser(app);
+  const out = await verifiedUser(app);
+  for (let i = 0; i < 3; i++) {
+    const s = await verifiedUser(app);
+    await s.deposit('250');
+    assert.equal((await s.send(mule.phone, '200')).statusCode, 201);
+  }
+  const r = await mule.send(out.phone, '500'); // 500 of 600 received today (83%)
+  assert.equal(r.statusCode, 202);
+  const d = await db.query('SELECT reasons FROM compliance_decisions WHERE transfer_id = $1', [r.json().transfer_id]);
+  assert.deepEqual(d.rows[0].reasons, ['funnel_pass_through']);
+});
+
 t('daily limit counts prior volume', async () => {
   const a = await verifiedUser(app, 1); // tier 1: $500/day
   const b = await verifiedUser(app);

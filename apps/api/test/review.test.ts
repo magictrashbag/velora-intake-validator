@@ -89,18 +89,17 @@ t('approval is judged on TODAY\'s facts: if the gate now denies, execution is re
   const c = await caseFor(transferId);
   await act(alice, c.id, 'approve');
   await b.kyc({ screening: 'confirmed_match' }); // recipient confirmed as sanctioned meanwhile
+  const blockedBefore = await sys('blocked_funds');
   const r = await act(bob, c.id, 'approve');
   assert.equal(r.statusCode, 409);
   assert.deepEqual(r.json().refused_reasons, ['recipient_sanctions_match']);
+  // A sanctions nexus is never left releasable: the reserve is blocked and reported automatically.
+  assert.equal(r.json().auto_blocked, true);
+  assert.equal(r.json().status, 'blocked');
   assert.equal(await b.balance(), '0.000000');
-  const acts = await db.query(`SELECT action FROM review_actions WHERE case_id = $1 ORDER BY id`, [c.id]);
-  assert.deepEqual(acts.rows.map((x) => x.action), ['approve', 'execute_refused']);
-
-  // The right outcome now: block. Funds become blocked property with an OFAC report.
-  const blockedBefore = await sys('blocked_funds');
-  const bl = await act(bob, c.id, 'block');
-  assert.equal(bl.json().status, 'blocked');
   assert.equal(await sys('blocked_funds') - blockedBefore, 10_000_000n);
+  const acts = await db.query(`SELECT action FROM review_actions WHERE case_id = $1 ORDER BY id`, [c.id]);
+  assert.deepEqual(acts.rows.map((x) => x.action), ['approve', 'execute_refused', 'block']);
   const rep = await db.query(`SELECT report_type FROM ofac_reports WHERE transfer_id = $1`, [transferId]);
   assert.equal(rep.rows[0].report_type, 'blocked_property');
 });
@@ -123,6 +122,71 @@ t('reject returns the reserve to the sender (single reviewer)', async () => {
   assert.equal(await b.balance(), '0.000000');
   const tr = await db.query('SELECT status FROM transfers WHERE id = $1', [transferId]);
   assert.equal(tr.rows[0].status, 'denied');
+});
+
+t('a refund (reject) is refused when a sanctions nexus exists now', async () => {
+  const { a, b, transferId } = await heldP2P();
+  const c = await caseFor(transferId);
+  await b.kyc({ screening: 'confirmed_match' });
+  const r = await act(alice, c.id, 'reject');
+  assert.equal(r.statusCode, 409);
+  assert.equal(r.json().error, 'sanctions_nexus_must_block');
+  assert.equal(await a.balance(), '40.000000', 'nothing returned');
+});
+
+t('a disabled staff member\'s earlier approval no longer counts', async () => {
+  const { b, transferId } = await heldP2P();
+  const c = await caseFor(transferId);
+  const eve = { authorization: `Bearer ${(await issueStaffToken(db, 'eve@puente.test', 'reviewer')).token}` };
+  await act(eve, c.id, 'approve');
+  await db.query(`UPDATE staff SET status = 'disabled' WHERE email = 'eve@puente.test'`);
+  const r = await act(bob, c.id, 'approve');
+  assert.equal(r.json().status, 'awaiting_second_approval', 'bob becomes the FIRST valid approval');
+  assert.equal(await b.balance(), '0.000000');
+});
+
+t('limits count released transfers on the day they execute (no bypass via old holds)', async () => {
+  const a = await verifiedUser(app, 2); // $5,000/day
+  const b = await verifiedUser(app);
+  for (let i = 0; i < 3; i++) await a.deposit('2999');
+  const h1 = await a.send(b.phone, '3000');
+  await db.query(`UPDATE transfers SET created_at = now() - interval '2 days' WHERE id = $1`, [h1.json().transfer_id]);
+  const h2 = await a.send(b.phone, '3000');
+  await db.query(`UPDATE transfers SET created_at = now() - interval '2 days' WHERE id = $1`, [h2.json().transfer_id]);
+  assert.equal(h1.statusCode, 202); assert.equal(h2.statusCode, 202);
+  assert.equal((await a.send(b.phone, '1500')).statusCode, 201);
+  const c1 = await caseFor(h1.json().transfer_id);
+  await act(alice, c1.id, 'approve');
+  assert.equal((await act(bob, c1.id, 'approve')).json().executed, true); // 1500 + 3000 today
+  const c2 = await caseFor(h2.json().transfer_id);
+  await act(alice, c2.id, 'approve');
+  const r = await act(bob, c2.id, 'approve'); // would make 7500 today
+  assert.equal(r.statusCode, 409);
+  assert.deepEqual(r.json().refused_reasons, ['limit_daily']);
+});
+
+t('new reasons merged into a live case reset it: earlier approvals no longer count', async () => {
+  const u = await verifiedUser(app);
+  await u.deposit('10');
+  for (let i = 0; i < 3; i++) await withdraw(app, u, { network: 'polygon', address: '0x' + '2'.repeat(36) + 'dead', amount: '1' });
+  const uid = (await db.query('SELECT id FROM users WHERE phone = $1', [u.phone])).rows[0].id;
+  const c = await caseFor(uid);
+  await act(carol, c.id, 'approve');
+  // A new alert on the same customer while the case awaits its second approval.
+  const { openReviewCase } = await import('../src/movement.ts');
+  const client = await db.connect();
+  await openReviewCase(client as any, 'user', uid, uid, ['rescreen_potential_match']);
+  client.release();
+  await u.kyc({ screening: 'potential_match' });
+  const merged = await caseFor(uid);
+  assert.deepEqual(merged.reasons, ['auto_frozen_sanctions_strikes', 'rescreen_potential_match']);
+  assert.equal(merged.status, 'open');
+  const r = await act(dave, c.id, 'approve');
+  assert.equal(r.json().status, 'awaiting_second_approval', "carol's earlier approval predates the new reason");
+  const r2 = await act(carol, c.id, 'approve');
+  assert.equal(r2.json().executed, true);
+  const st = await db.query('SELECT status, screening FROM users WHERE id = $1', [uid]);
+  assert.deepEqual(st.rows[0], { status: 'active', screening: 'clear' }, 'four-eyes approval dispositions the potential match');
 });
 
 t('decisions need a real note', async () => {

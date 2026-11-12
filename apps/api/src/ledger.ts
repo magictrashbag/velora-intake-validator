@@ -16,6 +16,14 @@ export async function postLedgerTxn(tx: Tx, kind: string, description: string, l
   }
   for (const [c, s] of sums) if (s !== 0n) throw new Error(`unbalanced ${c}: ${s}`);
 
+  // Lock ordering rule (deadlock freedom): callers lock customer WALLETS first (lockWallet);
+  // here every SYSTEM account touched is locked in one global order (by id) before any entry is
+  // written. Hot shared rows (compliance_hold, payout_clearing, custody_float, fx_inventory...)
+  // are therefore always acquired in the same order by every transaction.
+  await tx.query(
+    `SELECT id FROM accounts WHERE id = ANY($1::uuid[]) AND owner_user_id IS NULL ORDER BY id FOR NO KEY UPDATE`,
+    [[...new Set(legs.map((l) => l.accountId))]]);
+
   const { rows } = await tx.query<{ id: string }>(
     'INSERT INTO ledger_transactions (kind, description) VALUES ($1,$2) RETURNING id',
     [kind, description],

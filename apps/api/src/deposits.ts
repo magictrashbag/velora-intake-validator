@@ -7,7 +7,7 @@ import { withTx } from './db.ts';
 import type { Config } from './config.ts';
 import { AppError } from './errors.ts';
 import { audit, jsonBigint } from './audit.ts';
-import { postLedgerTxn, systemAccount } from './ledger.ts';
+import { lockWallet, postLedgerTxn, systemAccount } from './ledger.ts';
 import { partyFromRow, openReviewCase } from './movement.ts';
 
 export interface DepositEvent {
@@ -86,8 +86,9 @@ export async function processCryptoDeposit(
     const disposition = decision.outcome === 'allow' ? 'credited'
       : requiresOfacReport(decision.reasons) ? 'blocked' : 'held';
 
+    // Wallet before system accounts (global lock order; see postLedgerTxn).
     const target = disposition === 'credited'
-      ? (await tx.query(`SELECT id FROM accounts WHERE owner_user_id = $1 AND currency = 'USDC'`, [ev.userId])).rows[0].id
+      ? (await lockWallet(tx, ev.userId, 'USDC')).id
       : await systemAccount(tx, disposition === 'blocked' ? 'blocked_funds' : 'compliance_hold', 'USDC');
 
     const ledgerTxnId = await postLedgerTxn(tx, 'deposit', `USDC deposit (${ev.network}) ${disposition}`, [

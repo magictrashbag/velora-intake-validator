@@ -1,16 +1,21 @@
 /**
  * Review engine. Rules:
- *  - APPROVE needs two different staff (four-eyes). The second approval executes.
+ *  - APPROVE needs two different, currently-active staff (four-eyes). Approvals given before new
+ *    reasons were merged into the case don't count. The second approval executes.
  *  - At execution the gate is re-run on TODAY's facts (fresh address screening, current
- *    screening/status/limits). If it would now deny, or raise review reasons the reviewers did not
- *    see, execution is refused and the refusal is recorded; the case stays open.
- *  - REJECT (refund) and BLOCK (blocked property + OFAC report) need one reviewer: both are the
- *    more restrictive outcome.
- *  - Unfreezing a user needs compliance_officer/admin approvals.
- *  - Every action, including refusals, lands in append-only review_actions.
+ *    screening/status/limits). If it would now deny or raise new review reasons, execution is
+ *    refused and recorded. If the refusal is a SANCTIONS nexus, the funds are blocked and an OFAC
+ *    report is filed automatically: a sanctions hit is never left in a releasable state.
+ *  - REJECT (refund) needs one reviewer, but is refused when a sanctions nexus exists now
+ *    (funds in which a blocked person has an interest must be blocked, not returned).
+ *  - BLOCK (blocked property + OFAC report) needs one reviewer.
+ *  - User cases: unfreezing requires compliance officers; approving a potential-match case is the
+ *    recorded human disposition that clears it; a confirmed match can never be cleared here.
+ *  - Every action, including refusals and automatic blocks, lands in append-only review_actions.
  */
 import {
-  evaluateTransfer, addBusinessDays, type Currency, type Network, type SanctionsScreener, type AddressRisk,
+  evaluateTransfer, requiresOfacReport, addBusinessDays,
+  type Currency, type Decision, type Network, type SanctionsScreener, type AddressRisk,
 } from '@puente/core';
 import type { Db, Tx } from './db.ts';
 import { withTx } from './db.ts';
@@ -28,6 +33,7 @@ export interface ReviewOutcome {
   status: 'open' | 'awaiting_second_approval' | 'approved' | 'rejected' | 'blocked';
   executed: boolean;
   refused_reasons?: string[];
+  auto_blocked?: boolean;
 }
 
 interface Deps { db: Db; config: Config; screener: SanctionsScreener }
@@ -38,9 +44,9 @@ export async function actOnCase(d: Deps, staff: StaffUser, caseId: string, actio
   const c0 = peek.rows[0];
   if (!c0) throw new AppError(404, 'case_not_found');
 
-  // Fresh address screening for approvals that will send/credit crypto (network call: outside the tx).
+  // Fresh address screening before anything that releases funds (network call: outside the tx).
   let freshRisk: AddressRisk | undefined;
-  if (action === 'approve') {
+  if (action === 'approve' || action === 'reject') {
     const addr = await addressFor(d.db, c0.subject_type, c0.subject_id);
     if (addr) {
       const scr = await d.screener.screenAddress(addr.network, addr.address);
@@ -65,6 +71,12 @@ export async function actOnCase(d: Deps, staff: StaffUser, caseId: string, actio
       await tx.query(`UPDATE review_cases SET status = $2, closed_at = now() WHERE id = $1`, [caseId, status]);
       await audit(tx, { actor: null, action: `review.${status}`, subject: caseId, details: { staff: staff.id }, ...(ip ? { ip } : {}) });
     };
+    const block = async (why: string) => {
+      if (c.subject_type === 'transfer') await releaseTransfer(tx, c.subject_id, 'block');
+      else await blockDeposit(tx, c.subject_id);
+      await record('block', why);
+      await close('blocked');
+    };
 
     if (action === 'comment') {
       await record('comment');
@@ -72,22 +84,40 @@ export async function actOnCase(d: Deps, staff: StaffUser, caseId: string, actio
     }
 
     if (action === 'approve') {
-      const prior = await tx.query<{ staff_id: string }>(
-        `SELECT staff_id FROM review_actions WHERE case_id = $1 AND action = 'approve'`, [caseId]);
+      // Only approvals from staff who are STILL active, given after the case's current reasons.
+      const prior = await tx.query<{ staff_id: string; role: string }>(
+        `SELECT a.staff_id, s.role FROM review_actions a JOIN staff s ON s.id = a.staff_id
+          WHERE a.case_id = $1 AND a.action = 'approve' AND s.status = 'active' AND a.created_at >= $2`,
+        [caseId, c.reasons_updated_at]);
       if (prior.rows.some((r) => r.staff_id === staff.id)) throw new AppError(409, 'second_approver_must_differ');
-      if (c.subject_type === 'user' && prior.rows.length) {
-        const r = await tx.query(`SELECT role FROM staff WHERE id = $1`, [prior.rows[0]!.staff_id]);
-        if (r.rows[0]?.role === 'reviewer') throw new AppError(409, 'first_approval_insufficient_role');
+      if (c.subject_type === 'user' && prior.rows.some((r) => r.role === 'reviewer')) {
+        throw new AppError(409, 'first_approval_insufficient_role');
       }
       if (prior.rows.length === 0) {
         await record('approve');
         await tx.query(`UPDATE review_cases SET status = 'awaiting_second_approval' WHERE id = $1`, [caseId]);
         return { case_id: caseId, status: 'awaiting_second_approval', executed: false };
       }
-      const refused = await executeApproval(tx, d, c, freshRisk);
-      if (refused) {
-        await record('execute_refused', `${note} | gate now: ${refused.join(', ')}`);
-        return { case_id: caseId, status: c.status, executed: false, refused_reasons: refused };
+
+      if (c.subject_type === 'user') {
+        const refused = await approveUser(tx, c);
+        if (refused) {
+          await record('execute_refused', `${note} | ${refused.join(', ')}`);
+          return { case_id: caseId, status: c.status, executed: false, refused_reasons: refused };
+        }
+      } else {
+        const ev = await reevaluate(tx, d, c, freshRisk);
+        const refused = judge(c.reasons, ev.decision);
+        if (refused) {
+          await record('execute_refused', `${note} | gate now: ${refused.join(', ')}`);
+          if (requiresOfacReport(ev.decision.reasons)) {
+            await block(`automatic block: sanctions nexus at approval (${ev.decision.reasons.join(', ')})`);
+            return { case_id: caseId, status: 'blocked', executed: true, refused_reasons: refused, auto_blocked: true };
+          }
+          return { case_id: caseId, status: c.status, executed: false, refused_reasons: refused };
+        }
+        if (c.subject_type === 'transfer') await executeTransfer(tx, ev.row);
+        else await creditDeposit(tx, ev.row);
       }
       await record('approve');
       await close('approved');
@@ -96,7 +126,13 @@ export async function actOnCase(d: Deps, staff: StaffUser, caseId: string, actio
 
     if (action === 'reject') {
       if (c.subject_type === 'deposit') throw new AppError(400, 'reject_not_supported', 'deposits are approved or blocked');
-      if (c.subject_type === 'transfer') await releaseTransfer(tx, c.subject_id, 'refund');
+      if (c.subject_type === 'transfer') {
+        const ev = await reevaluate(tx, d, c, freshRisk);
+        if (requiresOfacReport(ev.decision.reasons)) {
+          throw new AppError(409, 'sanctions_nexus_must_block', `cannot refund: ${ev.decision.reasons.join(', ')}`);
+        }
+        await releaseTransfer(tx, c.subject_id, 'refund');
+      }
       await record('reject');
       await close('rejected');
       return { case_id: caseId, status: 'rejected', executed: true };
@@ -104,10 +140,7 @@ export async function actOnCase(d: Deps, staff: StaffUser, caseId: string, actio
 
     // block
     if (c.subject_type === 'user') throw new AppError(400, 'block_not_supported', 'users stay frozen; reject the unfreeze');
-    if (c.subject_type === 'transfer') await releaseTransfer(tx, c.subject_id, 'block');
-    else await blockDeposit(tx, c.subject_id);
-    await record('block');
-    await close('blocked');
+    await block(note);
     return { case_id: caseId, status: 'blocked', executed: true };
   });
 }
@@ -125,28 +158,48 @@ async function addressFor(db: Db, type: string, id: string): Promise<{ network: 
   return null;
 }
 
-/** Returns refusal reasons, or null after executing. */
-async function executeApproval(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk | undefined): Promise<string[] | null> {
-  if (c.subject_type === 'user') {
-    const u = (await tx.query('SELECT screening, status FROM users WHERE id = $1', [c.subject_id])).rows[0];
-    if (u.screening === 'confirmed_match') return ['user_sanctions_match'];
-    await tx.query(`UPDATE users SET status = 'active' WHERE id = $1 AND status = 'frozen'`, [c.subject_id]);
-    return null;
-  }
-  if (c.subject_type === 'deposit') return approveDeposit(tx, d, c, freshRisk);
-  return approveTransfer(tx, d, c, freshRisk);
-}
-
-function judge(caseReasons: string[], outcome: string, reasons: string[]): string[] | null {
-  if (outcome === 'deny') return reasons;
-  if (outcome === 'review') {
-    const fresh = reasons.filter((r) => !caseReasons.includes(r));
+function judge(caseReasons: string[], d: Decision): string[] | null {
+  if (d.outcome === 'deny') return d.reasons;
+  if (d.outcome === 'review') {
+    const fresh = d.reasons.filter((r) => !caseReasons.includes(r));
     if (fresh.length) return ['new_review_reasons', ...fresh];
   }
   return null;
 }
 
-async function approveTransfer(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk | undefined): Promise<string[] | null> {
+async function approveUser(tx: Tx, c: any): Promise<string[] | null> {
+  const u = (await tx.query('SELECT screening FROM users WHERE id = $1', [c.subject_id])).rows[0];
+  if (u.screening === 'confirmed_match') return ['user_sanctions_match'];
+  if (u.screening === 'potential_match') {
+    // Two officers approving the case IS the documented disposition of the alert as a false positive.
+    await tx.query(`UPDATE users SET screening = 'clear', screened_at = now() WHERE id = $1`, [c.subject_id]);
+    await tx.query(`INSERT INTO person_screenings (user_id, result, provider_ref) VALUES ($1,'clear',$2)`,
+      [c.subject_id, `manual:review_case:${c.id}`]);
+  }
+  await tx.query(`UPDATE users SET status = 'active' WHERE id = $1 AND status = 'frozen'`, [c.subject_id]);
+  return null;
+}
+
+/** Re-run the gate for a held transfer or deposit on current facts, and record the decision. */
+async function reevaluate(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk | undefined): Promise<{ decision: Decision; row: any }> {
+  if (c.subject_type === 'deposit') {
+    const dep = (await tx.query('SELECT * FROM crypto_deposits WHERE id = $1 FOR UPDATE', [c.subject_id])).rows[0];
+    if (dep.disposition !== 'held' || dep.resolved_at) throw new AppError(409, 'deposit_not_held');
+    const u = (await tx.query(PARTY_SQL, [dep.user_id])).rows[0];
+    const ctx = {
+      kind: 'crypto_deposit' as const,
+      sender: partyFromRow(u),
+      counterpartyAddress: { network: dep.network, address: dep.from_address, risk: freshRisk ?? 'unscreened' as const },
+      amountUsdCents: (dep.amount_minor + 9_999n) / 10_000n,
+      sentLast24hUsdCents: 0n, sentLast30dUsdCents: 0n, recentNearThresholdCount: 0,
+    };
+    const decision = evaluateTransfer(ctx);
+    await tx.query(
+      `INSERT INTO compliance_decisions (user_id, deposit_id, outcome, reasons, context, policy_version) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [dep.user_id, dep.id, decision.outcome, decision.reasons, JSON.stringify({ reevaluation: true, ...ctx }, jsonBigint), d.config.policyVersion]);
+    return { decision, row: dep };
+  }
+
   const t = (await tx.query('SELECT * FROM transfers WHERE id = $1 FOR UPDATE', [c.subject_id])).rows[0];
   if (t.status !== 'held_for_review') throw new AppError(409, 'transfer_not_held');
   const det = t.details ?? {};
@@ -167,9 +220,11 @@ async function approveTransfer(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk |
     `INSERT INTO compliance_decisions (user_id, transfer_id, outcome, reasons, context, policy_version)
      VALUES ($1,$2,$3,$4,$5,$6)`,
     [t.sender_user_id, t.id, decision.outcome, decision.reasons, JSON.stringify({ reevaluation: true, ...ctx }, jsonBigint), d.config.policyVersion]);
-  const refused = judge(c.reasons, decision.outcome, decision.reasons);
-  if (refused) return refused;
+  return { decision, row: t };
+}
 
+async function executeTransfer(tx: Tx, t: any) {
+  const det = t.details ?? {};
   const cur = t.currency as Currency;
   const amt: bigint = t.amount_minor;
   const hold = await systemAccount(tx, 'compliance_hold', cur);
@@ -193,9 +248,6 @@ async function approveTransfer(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk |
     const buy = det.buy as Currency;
     const buyMinor = BigInt(det.buy_minor);
     const to = await lockWallet(tx, t.sender_user_id, buy);
-    await tx.query(
-      `SELECT id FROM accounts WHERE owner_user_id IS NULL AND kind = 'fx_inventory' AND currency = ANY($1)
-        ORDER BY currency FOR NO KEY UPDATE`, [[sell, buy]]);
     txn = await postLedgerTxn(tx, 'fx', `Exchange ${sell}->${buy} (released after review, original quote)`, [
       { accountId: hold, currency: sell, amount: -amt },
       { accountId: await systemAccount(tx, 'fx_inventory', sell), currency: sell, amount: amt },
@@ -205,8 +257,10 @@ async function approveTransfer(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk |
   } else {
     throw new AppError(400, 'kind_not_reviewable');
   }
-  await tx.query(`UPDATE transfers SET status = 'posted', ledger_txn_id = $2, release_ledger_txn_id = $2 WHERE id = $1`, [t.id, txn]);
-  return null;
+  // executed_at = NOW: the money moves today, so it counts against today's limits.
+  await tx.query(
+    `UPDATE transfers SET status = 'posted', ledger_txn_id = $2, release_ledger_txn_id = $2, executed_at = now() WHERE id = $1`,
+    [t.id, txn]);
 }
 
 /** Move a held transfer's reserve out of compliance_hold: back to the sender, or into blocked_funds. */
@@ -230,30 +284,13 @@ async function releaseTransfer(tx: Tx, transferId: string, mode: 'refund' | 'blo
   }
 }
 
-async function approveDeposit(tx: Tx, d: Deps, c: any, freshRisk: AddressRisk | undefined): Promise<string[] | null> {
-  const dep = (await tx.query('SELECT * FROM crypto_deposits WHERE id = $1 FOR UPDATE', [c.subject_id])).rows[0];
-  if (dep.disposition !== 'held' || dep.resolved_at) throw new AppError(409, 'deposit_not_held');
-  const u = (await tx.query(PARTY_SQL, [dep.user_id])).rows[0];
-  const ctx = {
-    kind: 'crypto_deposit' as const,
-    sender: partyFromRow(u),
-    counterpartyAddress: { network: dep.network, address: dep.from_address, risk: freshRisk ?? 'unscreened' as const },
-    amountUsdCents: (dep.amount_minor + 9_999n) / 10_000n,
-    sentLast24hUsdCents: 0n, sentLast30dUsdCents: 0n, recentNearThresholdCount: 0,
-  };
-  const decision = evaluateTransfer(ctx);
-  await tx.query(
-    `INSERT INTO compliance_decisions (user_id, deposit_id, outcome, reasons, context, policy_version) VALUES ($1,$2,$3,$4,$5,$6)`,
-    [dep.user_id, dep.id, decision.outcome, decision.reasons, JSON.stringify({ reevaluation: true, ...ctx }, jsonBigint), d.config.policyVersion]);
-  const refused = judge(c.reasons, decision.outcome, decision.reasons);
-  if (refused) return refused;
+async function creditDeposit(tx: Tx, dep: any) {
   const w = await lockWallet(tx, dep.user_id, 'USDC');
   const txn = await postLedgerTxn(tx, 'hold_release', 'Deposit credited after review', [
     { accountId: await systemAccount(tx, 'compliance_hold', 'USDC'), currency: 'USDC', amount: -dep.amount_minor },
     { accountId: w.id, currency: 'USDC', amount: dep.amount_minor },
   ]);
   await tx.query(`UPDATE crypto_deposits SET disposition = 'credited', resolved_ledger_txn_id = $2, resolved_at = now() WHERE id = $1`, [dep.id, txn]);
-  return null;
 }
 
 async function blockDeposit(tx: Tx, depositId: string) {

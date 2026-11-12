@@ -3,6 +3,7 @@ import { withTx } from './db.ts';
 import { AppError } from './errors.ts';
 import { audit } from './audit.ts';
 import { lockWallet, postLedgerTxn, systemAccount } from './ledger.ts';
+import { addBusinessDays } from '@puente/core';
 
 /**
  * Apply the custodian's final word on a withdrawal.
@@ -37,12 +38,21 @@ export async function settleWithdrawal(db: Db, ev: {
       ]);
     } else {
       // Same lock order as customer movements: user row, then wallet.
-      await tx.query('SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE', [w.user_id]);
-      const wallet = await lockWallet(tx, w.user_id, 'USDC');
-      txn = await postLedgerTxn(tx, 'payout', 'Withdrawal failed — refunded', [
+      const u = (await tx.query('SELECT screening FROM users WHERE id = $1 FOR NO KEY UPDATE', [w.user_id])).rows[0];
+      // A customer who has since become a confirmed sanctions match gets nothing back: blocked property.
+      const sanctioned = u.screening === 'confirmed_match';
+      const target = sanctioned ? await systemAccount(tx, 'blocked_funds', 'USDC') : (await lockWallet(tx, w.user_id, 'USDC')).id;
+      txn = await postLedgerTxn(tx, 'payout', sanctioned ? 'Withdrawal failed — blocked (sanctions)' : 'Withdrawal failed — refunded', [
         { accountId: clearing, currency: 'USDC', amount: -amt },
-        { accountId: wallet.id, currency: 'USDC', amount: amt },
+        { accountId: target, currency: 'USDC', amount: amt },
       ]);
+      if (sanctioned) {
+        await tx.query(
+          `INSERT INTO ofac_reports (report_type, user_id, transfer_id, reasons, currency, amount_minor, due_by)
+           VALUES ('blocked_property',$1,$2,$3,'USDC',$4,$5)`,
+          [w.user_id, w.transfer_id, ['failed_withdrawal_sanctioned_customer'], amt.toString(),
+           addBusinessDays(new Date(), 10).toISOString().slice(0, 10)]);
+      }
     }
     await tx.query(
       `UPDATE crypto_withdrawals SET status = $2, provider_ref = $3, chain_tx_hash = $4, last_error = $5,

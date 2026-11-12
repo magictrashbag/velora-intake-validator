@@ -129,8 +129,8 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
 
   const t = await tx.query<{ id: string }>(
     `INSERT INTO transfers (sender_user_id, recipient_user_id, kind, currency, amount_minor, amount_usd_cents,
-                            status, ledger_txn_id, hold_ledger_txn_id, idempotency_key, request_hash, details)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+                            status, ledger_txn_id, hold_ledger_txn_id, idempotency_key, request_hash, details, executed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, CASE WHEN $7 = 'posted' THEN now() END) RETURNING id`,
     [m.senderId, m.recipientId ?? null, m.kind, m.currency, m.amountMinor.toString(), m.amountUsdCents.toString(),
      status, ledgerTxnId, holdTxnId, m.idempotencyKey, requestHash,
      canonicalJson({
@@ -200,16 +200,27 @@ export interface ContextInput {
 export async function buildTransferContext(tx: Tx, c: ContextInput): Promise<TransferContext> {
   const p = DEFAULT_POLICY;
   const vol = await tx.query<{ d: bigint; m: bigint; near: number }>(
-    `SELECT coalesce(sum(amount_usd_cents) FILTER (WHERE created_at > now() - interval '24 hours'), 0)::bigint AS d,
+    `SELECT coalesce(sum(amount_usd_cents) FILTER (WHERE coalesce(executed_at, created_at) > now() - interval '24 hours'), 0)::bigint AS d,
             coalesce(sum(amount_usd_cents), 0)::bigint AS m,
-            count(*) FILTER (WHERE created_at > now() - interval '24 hours' AND (
+            count(*) FILTER (WHERE coalesce(executed_at, created_at) > now() - interval '24 hours' AND (
                 (amount_usd_cents < $2 AND amount_usd_cents * 10 >= $2 * 9) OR
                 (amount_usd_cents < $3 AND amount_usd_cents * 10 >= $3 * 9)))::int AS near
        FROM transfers
       WHERE sender_user_id = $1 AND status IN ('posted','held_for_review')
-        AND created_at > now() - interval '30 days'
+        AND coalesce(executed_at, created_at) > now() - interval '30 days'
         AND ($4::uuid IS NULL OR id <> $4::uuid)`,
     [c.senderRow.id, p.travelRuleThresholdUsdCents.toString(), p.reviewAboveUsdCents.toString(), c.excludeTransferId ?? null]);
+
+  // Inbound money in the last 24h and how many distinct sources it came from (funnel detection).
+  const inb = await tx.query<{ usd: bigint; sources: number }>(
+    `SELECT coalesce(sum(usd), 0)::bigint AS usd, count(DISTINCT src)::int AS sources FROM (
+       SELECT (amount_minor + 9999) / 10000 AS usd, 'addr:' || network || ':' || from_address AS src
+         FROM crypto_deposits WHERE user_id = $1 AND disposition = 'credited' AND created_at > now() - interval '24 hours'
+       UNION ALL
+       SELECT amount_usd_cents, 'user:' || sender_user_id
+         FROM transfers WHERE recipient_user_id = $1 AND status = 'posted' AND kind = 'p2p'
+          AND coalesce(executed_at, created_at) > now() - interval '24 hours') x`,
+    [c.senderRow.id]);
 
   // Travel Rule: the ORIGINATOR name comes from the KYC record, never from the request body.
   // A missing legal name leaves originatorName empty, which the gate treats as incomplete.
@@ -228,15 +239,22 @@ export async function buildTransferContext(tx: Tx, c: ContextInput): Promise<Tra
     sentLast24hUsdCents: vol.rows[0]!.d,
     sentLast30dUsdCents: vol.rows[0]!.m,
     recentNearThresholdCount: vol.rows[0]!.near,
+    inboundLast24hUsdCents: inb.rows[0]!.usd,
+    inboundDistinctSources24h: inb.rows[0]!.sources,
   };
 }
 
 export async function openReviewCase(
   tx: Tx, subjectType: 'transfer' | 'deposit' | 'user', subjectId: string, userId: string, reasons: string[],
 ) {
+  // If a live case already exists, MERGE new reasons into it and reset it to 'open': approvals
+  // given before the new reasons appeared no longer count (see reasons_updated_at).
   await tx.query(
     `INSERT INTO review_cases (subject_type, subject_id, user_id, reasons) VALUES ($1,$2,$3,$4)
-     ON CONFLICT DO NOTHING`, [subjectType, subjectId, userId, reasons]);
+     ON CONFLICT (subject_type, subject_id) WHERE status IN ('open','awaiting_second_approval')
+     DO UPDATE SET reasons = ARRAY(SELECT DISTINCT unnest(review_cases.reasons || EXCLUDED.reasons) ORDER BY 1),
+                   status = 'open', reasons_updated_at = now()
+       WHERE NOT (EXCLUDED.reasons <@ review_cases.reasons)`, [subjectType, subjectId, userId, reasons]);
 }
 
 async function replay(tx: Tx, id: string, status: MovementResult['status']): Promise<MovementResult> {

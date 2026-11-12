@@ -18,6 +18,14 @@ export async function runWithdrawalWorker(db: Db, custody: CustodyProvider, o: W
   const maxAttempts = o.maxAttempts ?? 5;
   const res: WorkerResult = { claimed: 0, broadcast: 0, errored: 0, flagged: 0 };
 
+  // A claim that went stale after the LAST allowed attempt (worker crashed) is flagged for a human.
+  const abandoned = await db.query(
+    `UPDATE crypto_withdrawals SET needs_attention = true, last_error = coalesce(last_error, 'worker lost claim at max attempts'), updated_at = now()
+      WHERE status = 'sending' AND needs_attention = false AND attempts >= $1 AND claimed_at < now() - make_interval(secs => $2)
+      RETURNING id`, [maxAttempts, stale]);
+  for (const a of abandoned.rows) await audit(db, { action: 'withdrawal.needs_attention', subject: a.id, details: { reason: 'abandoned_claim' } });
+  res.flagged += abandoned.rowCount ?? 0;
+
   // Claim atomically; SKIP LOCKED lets several workers run without sending anything twice.
   const claimed = await db.query(
     `UPDATE crypto_withdrawals w SET status = 'sending', claimed_at = now(), claim_token = gen_random_uuid(), attempts = attempts + 1

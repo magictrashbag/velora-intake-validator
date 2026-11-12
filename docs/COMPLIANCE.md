@@ -85,6 +85,7 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 | 9 | Structuring (3+ transfers just under a threshold in 24h) → review | `isNearThreshold` | ✓ |
 | 10 | New account (<7d) moving ≥ US$300 → review | gate | ✓ |
 | 11 | Large amount (≥ US$3,000, in or out) → review | gate | ✓ |
+| 11a | Funnel/mule: ≥3 inbound sources and ≥ US$500 in 24h, with ≥80% pushed out by P2P/crypto → review. Bank cash-out of a remittance is the normal use case and is excluded | gate `funnel` | ✓ |
 | 12 | No tipping off: if *any* reason is internal, the customer sees only `not_permitted` | `CUSTOMER_SAFE_REASONS` | ✓ |
 | 13 | USDC-routing invariant (DB) | `002_crypto_compliance.sql` | ✓ |
 | 14 | Double-entry, append-only, no overdraft (DB) | `001_init.sql` | ✓ |
@@ -99,6 +100,15 @@ FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April
 | 17 | Webhooks: HMAC + 5-min replay window, authenticated before parsing the schema | `routes/crypto.ts` | ✓ |
 | 18 | Production refuses to start with mock providers or missing secrets; dev routes absent | `app.ts`, `config.ts` | ✓ |
 | 19 | Every decision stored with full inputs + policy version | `compliance_decisions` | ✓ |
+
+A second independent review, covering the review console, withdrawal worker and daily job, found 11 more. All are fixed with regression tests. They included:
+
+- Automated re-screening could downgrade a confirmed sanctions match, letting two officers unfreeze the customer.
+- A confirmed match from re-screening didn't block the wallet or file a report.
+- Old held transfers approved later escaped daily limits.
+- A three-way deadlock between shared system accounts.
+
+That second review also prompted three new rules: a single global lock order for system accounts, sanctions nexus at approval → automatic block, and re-screening only ever escalates.
 
 An independent adversarial review of this code (Nov 2026) found 10 defects, including a sanctioned customer's deposit landing in a releasable hold, double-credit via tx-hash letter case, and probing screening results with an empty wallet. All 10 are fixed, each with a regression test.
 

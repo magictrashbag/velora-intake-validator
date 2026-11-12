@@ -117,6 +117,18 @@ t('custodian-reported failure refunds the customer', async () => {
   assert.equal(await u.balance(), '100.000000');
 });
 
+t('failed withdrawal for a customer who is now a confirmed sanctions match: blocked, not refunded', async () => {
+  await drain();
+  const { u, transferId } = await queuedWithdrawal();
+  await runWithdrawalWorker(db, mockCustody().provider);
+  await u.kyc({ screening: 'confirmed_match' });
+  const r = await settle({ transfer_id: transferId, status: 'failed', provider_ref: 'p3' });
+  assert.equal(r.statusCode, 200);
+  assert.equal(await u.balance(), '70.000000', 'no refund to a sanctioned customer');
+  const rep = await db.query(`SELECT report_type FROM ofac_reports WHERE transfer_id = $1`, [transferId]);
+  assert.equal(rep.rows[0].report_type, 'blocked_property');
+});
+
 t('status reports for never-sent withdrawals, or unsigned ones, are refused', async () => {
   await drain();
   const { transferId } = await queuedWithdrawal();
