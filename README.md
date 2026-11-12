@@ -1,4 +1,4 @@
-# Puente
+# Kame
 
 **A dollar wallet, remittances, Bs ↔ USD exchange and payments for Venezuela**, built compliance-first. Every conversion settles through USDC, and the database enforces this.
 
@@ -19,26 +19,56 @@ apps/mobile     Expo app (Spanish UI): phone login, balances, send dollars
 db/migrations   Postgres schema; the DB itself enforces double-entry, append-only and no-overdraft
 ```
 
-## Run it
+## Run it locally
 
-Requires Node 22+ and Postgres 16 (Docker, or the bundled script).
+You need **Node.js 22.9+**, **Git** and **Docker Desktop** (for Postgres). To try the app on a phone you also need **Expo Go**, with the phone on the same Wi-Fi as the PC.
 
-```bash
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/magictrashbag/velora-intake-validator.git kame
+cd kame
+git checkout claude/kontigo-repo-repurpose-vl2exb
 npm install
-docker compose up -d                      # or: eval "$(scripts/test-db.sh start)"
-cp .env.example .env && export $(grep -v '^#' .env | xargs)
-npm run db:migrate
-npm run dev:api                           # http://localhost:3000
-npm run dev:mobile                        # Expo; set EXPO_PUBLIC_API_URL to your machine's LAN IP for a phone
+
+copy .env.example .env                               # API settings (works as-is with Docker)
+copy apps\mobile\.env.example apps\mobile\.env       # where the app finds the API
+
+npm run db:up          # starts Postgres in Docker (Docker Desktop must be running)
+npm run db:migrate     # creates the tables
+npm run seed           # demo customers + staff logins; prints them
+npm run dev:api        # API + review console on http://localhost:3000  (leave this window open)
 ```
 
-In development the OTP code is returned in the `/v1/auth/otp/start` response. `POST /v1/dev/kyc` (tier, screening, legal name) and `POST /v1/dev/deposit` simulate partners; the deposit goes through the real screening path, and test addresses ending in `dead` or `beef` screen as sanctioned or high-risk. Those routes don't exist when `NODE_ENV=production`.
+Then, in a **second** PowerShell window in the same folder:
+
+- **App in your browser:** `npm run dev:web`, then press `w` if it doesn't open by itself.
+- **App on your phone:**
+  1. Run `ipconfig` and note the Wi-Fi adapter's **IPv4 Address** (e.g. `192.168.1.50`).
+  2. Set `EXPO_PUBLIC_API_URL=http://192.168.1.50:3000` in `apps\mobile\.env`.
+  3. Run `npm run dev:mobile` and scan the QR code with Expo Go (Android) or the Camera app (iPhone).
+  4. If Windows Firewall asks about Node.js, allow it on **Private networks**.
+- **Review console:** open http://localhost:3000/staff and paste a token printed by `npm run seed`. Approvals need two different staff, so use reviewer 1, then reviewer 2.
+
+Log in with a demo phone (e.g. `+584121234567`). In development the 6-digit code is shown on screen. Run `npm run seed` again any time for fresh staff tokens; tokens last 12 hours. Stop the database with `npm run db:down`.
+
+### macOS / Linux
+
+The same steps, using `cp` instead of `copy` and `/` instead of `\`. Without Docker on Linux, `eval "$(scripts/test-db.sh start)"` starts a throwaway Postgres; put the printed URL in `.env`.
+
+### Development-only behaviour
+
+- The OTP code is returned by `/v1/auth/otp/start`.
+- `POST /v1/dev/kyc` (tier, screening, legal name) and `POST /v1/dev/deposit` simulate partners. The deposit goes through the real screening path, and test addresses ending in `dead` or `beef` screen as sanctioned or high-risk.
+- The browser preview may call the API from `localhost` (CORS).
+
+None of this exists when `NODE_ENV=production`.
 
 ## Test
 
 ```bash
-eval "$(scripts/test-db.sh start)"   # throwaway Postgres on :54329
-npm run typecheck && npm test
+npm run typecheck
+npm test            # uses DATABASE_URL from .env (Docker Postgres); each test file creates and drops its own database
 ```
 
 The API tests run against real Postgres and check the properties that matter for a money app:
@@ -71,7 +101,7 @@ The API tests run against real Postgres and check the properties that matter for
 
 Amounts are decimal **strings**, never JSON numbers.
 
-**Staff review console**: open `http://localhost:3000/staff` and sign in with a staff token. The API underneath uses separate tokens issued by `DATABASE_URL=... npm run staff -w @puente/api -- create <email> <reviewer|compliance_officer|admin>`:
+**Staff review console**: open `http://localhost:3000/staff` and sign in with a staff token. The API underneath uses separate tokens issued by `DATABASE_URL=... npm run staff -w @kame/api -- create <email> <reviewer|compliance_officer|admin>`:
 
 | Method | Path | Notes |
 |---|---|---|

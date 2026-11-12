@@ -3,7 +3,7 @@ import type { Deps } from '../app.ts';
 import { withTx } from '../db.ts';
 import { AppError } from '../errors.ts';
 import { audit } from '../audit.ts';
-import { isBlockedPhone, phoneCountry } from '@puente/core';
+import { isBlockedPhone, phoneCountry } from '@kame/core';
 import { newOtpCode, newSessionToken, otpHash, safeEqual, sha256, requireAuth } from '../auth.ts';
 
 const PHONE = { type: 'string', pattern: '^\\+[1-9][0-9]{7,14}$' } as const;

@@ -1,4 +1,4 @@
-import type { FxRateProvider, Currency, SanctionsScreener, CustodyProvider } from '@puente/core';
+import type { FxRateProvider, Currency, SanctionsScreener, CustodyProvider } from '@kame/core';
 
 /** Delivers OTP codes. Production: a licensed SMS/WhatsApp provider. */
 export interface SmsSender {

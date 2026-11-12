@@ -1,4 +1,4 @@
-import type { Currency } from '@puente/core';
+import type { Currency } from '@kame/core';
 import type { Tx } from './db.ts';
 import { AppError } from './errors.ts';
 

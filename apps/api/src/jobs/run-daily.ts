@@ -1,4 +1,4 @@
-// Usage: DATABASE_URL=... NODE_ENV=development npm run jobs:daily -w @puente/api
+// Usage: DATABASE_URL=... NODE_ENV=development npm run jobs:daily -w @kame/api
 // Exit code 1 if any check failed, so the scheduler (cron/K8s CronJob) alerts.
 import { createPool } from '../db.ts';
 import { mockCustody, mockScreener } from '../providers/mock.ts';

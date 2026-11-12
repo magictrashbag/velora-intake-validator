@@ -77,13 +77,13 @@ export function ExchangeScreen({ token, onBack }: { token: string; onBack: () =>
 
 export const styles = StyleSheet.create({
   container: { padding: 20, paddingTop: 60 },
-  link: { color: theme.primary, fontSize: 16, marginBottom: 12 },
+  link: { color: theme.ink, fontSize: 16, fontWeight: '600', marginBottom: 12 },
   title: { fontSize: 28, fontWeight: '800', color: theme.text, marginBottom: 16 },
   row: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
   chip: { borderWidth: 1, borderColor: theme.border, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: theme.card },
-  chipOn: { backgroundColor: theme.primary, borderColor: theme.primary },
+  chipOn: { backgroundColor: theme.ink, borderColor: theme.ink },
   chipText: { color: theme.text },
-  chipTextOn: { color: '#fff', fontWeight: '700' },
+  chipTextOn: { color: theme.onInk, fontWeight: '700' },
   input: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, color: theme.text, backgroundColor: theme.card },
   card: { backgroundColor: theme.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: theme.border, gap: 6 },
   big: { fontSize: 22, fontWeight: '800', color: theme.text },

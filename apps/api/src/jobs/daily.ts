@@ -2,7 +2,7 @@
  * Daily compliance & integrity job. Produces one report, stores it in job_runs (append-only),
  * and returns ok=false if ANY check fails so the scheduler pages someone.
  */
-import { addBusinessDays, type CustodyProvider, type SanctionsScreener } from '@puente/core';
+import { addBusinessDays, type CustodyProvider, type SanctionsScreener } from '@kame/core';
 import type { Db } from '../db.ts';
 import { withTx } from '../db.ts';
 import { audit, jsonBigint } from '../audit.ts';

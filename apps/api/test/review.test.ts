@@ -18,10 +18,10 @@ before(async () => {
   ({ app, db, teardown } = await setup());
   const tok = async (email: string, role: 'reviewer' | 'compliance_officer') =>
     ({ authorization: `Bearer ${(await issueStaffToken(db, email, role)).token}` });
-  alice = await tok('alice@puente.test', 'reviewer');
-  bob = await tok('bob@puente.test', 'reviewer');
-  carol = await tok('carol@puente.test', 'compliance_officer');
-  dave = await tok('dave@puente.test', 'compliance_officer');
+  alice = await tok('alice@kame.test', 'reviewer');
+  bob = await tok('bob@kame.test', 'reviewer');
+  carol = await tok('carol@kame.test', 'compliance_officer');
+  dave = await tok('dave@kame.test', 'compliance_officer');
 });
 after(async () => { if (haveDb) await teardown(); });
 const t = (name: string, fn: () => Promise<void>) => test(name, { skip: !haveDb && 'DATABASE_URL not set' }, fn);
@@ -137,9 +137,9 @@ t('a refund (reject) is refused when a sanctions nexus exists now', async () => 
 t('a disabled staff member\'s earlier approval no longer counts', async () => {
   const { b, transferId } = await heldP2P();
   const c = await caseFor(transferId);
-  const eve = { authorization: `Bearer ${(await issueStaffToken(db, 'eve@puente.test', 'reviewer')).token}` };
+  const eve = { authorization: `Bearer ${(await issueStaffToken(db, 'eve@kame.test', 'reviewer')).token}` };
   await act(eve, c.id, 'approve');
-  await db.query(`UPDATE staff SET status = 'disabled' WHERE email = 'eve@puente.test'`);
+  await db.query(`UPDATE staff SET status = 'disabled' WHERE email = 'eve@kame.test'`);
   const r = await act(bob, c.id, 'approve');
   assert.equal(r.json().status, 'awaiting_second_approval', 'bob becomes the FIRST valid approval');
   assert.equal(await b.balance(), '0.000000');

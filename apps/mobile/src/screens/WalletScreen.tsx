@@ -6,13 +6,14 @@ import { session } from '../session';
 import { theme } from '../theme';
 import { Button } from './LoginScreen';
 import { initials } from './ProfileScreen';
+import { KameMark } from '../components/KameMark';
 import Svg, { Path } from 'react-native-svg';
 
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 
 export function WalletScreen({ token, onLogout, onNavigate, prefillTo }: {
   token: string; onLogout: () => void; onNavigate: (r: 'exchange' | 'withdraw' | 'profile' | 'scan') => void;
-  /** Recipient phone from a scanned Puente QR code. */
+  /** Recipient phone from a scanned Kame QR code. */
   prefillTo?: string;
 }) {
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -86,7 +87,10 @@ export function WalletScreen({ token, onLogout, onNavigate, prefillTo }: {
       ListHeaderComponent={
         <View>
           <View style={styles.header}>
-            <Text style={styles.brand}>Puente</Text>
+            <View style={styles.brandRow}>
+              <KameMark size={36} />
+              <Text style={styles.brand}>Kame</Text>
+            </View>
             <View style={styles.headerRight}>
               <Pressable onPress={() => onNavigate('scan')} accessibilityRole="button" accessibilityLabel="Escanear código"
                 style={styles.iconBtn}>
@@ -102,10 +106,10 @@ export function WalletScreen({ token, onLogout, onNavigate, prefillTo }: {
               </Pressable>
             </View>
           </View>
-          <View style={styles.card}>
-            <Text style={styles.muted}>Saldo en dólares</Text>
+          <View style={[styles.card, styles.hero]}>
+            <Text style={styles.heroMuted}>Saldo en dólares</Text>
             <Text style={styles.balance}>$ {usd ? Number(usd.amount).toFixed(2) : '—'}</Text>
-            <Text style={styles.muted}>Bs. {ves?.amount ?? '—'}</Text>
+            <Text style={styles.heroMuted}>Bs. {ves?.amount ?? '—'}</Text>
             <View style={styles.actions}>
               <Pressable style={styles.action} onPress={() => onNavigate('exchange')} accessibilityRole="button">
                 <Text style={styles.actionText}>Cambiar Bs ↔ USD</Text>
@@ -115,7 +119,7 @@ export function WalletScreen({ token, onLogout, onNavigate, prefillTo }: {
               </Pressable>
             </View>
             {wallet && wallet.user.kyc_tier === 0 ? (
-              <Text style={styles.warn}>Verifica tu identidad para enviar y cambiar dinero.</Text>
+              <Text style={styles.heroWarn}>Verifica tu identidad para enviar y cambiar dinero.</Text>
             ) : null}
           </View>
           <View style={styles.card}>
@@ -124,7 +128,7 @@ export function WalletScreen({ token, onLogout, onNavigate, prefillTo }: {
               keyboardType="phone-pad" placeholder="Teléfono destino" />
             {payee && payee.phone === toPhone ? (
               <Text style={[styles.payee, !payee.found && { color: theme.danger }]}>
-                {payee.found ? `Para: ${payee.name}` : 'Ese número no tiene cuenta Puente.'}
+                {payee.found ? `Para: ${payee.name}` : 'Ese número no tiene cuenta Kame.'}
               </Text>
             ) : null}
             <TextInput style={styles.input} value={amount} onChangeText={(v) => { setAmount(v); intentKey.current = null; }}
@@ -154,17 +158,22 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontWeight: '800' },
+  avatarText: { color: theme.onPrimary, fontWeight: '800' },
   payee: { color: theme.positive, fontWeight: '600', marginTop: -4, marginBottom: 12 },
-  brand: { fontSize: 28, fontWeight: '800', color: theme.primary },
-  link: { color: theme.primary, fontSize: 16 },
+  brand: { fontSize: 28, fontWeight: '800', color: theme.ink },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  link: { color: theme.ink, fontSize: 16, fontWeight: '600' },
   card: { backgroundColor: theme.card, borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.border },
   balance: { fontSize: 40, fontWeight: '800', color: theme.text, marginVertical: 4 },
+  // Gold hero card: ink text only (muted grey or red would fail contrast on gold).
+  hero: { backgroundColor: theme.primary, borderColor: theme.primary },
+  heroMuted: { color: theme.ink, opacity: 0.75, fontWeight: '600' },
+  heroWarn: { color: theme.ink, fontWeight: '700', marginTop: 12 },
   muted: { color: theme.muted },
   warn: { color: theme.danger, marginTop: 12 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  action: { flex: 1, borderWidth: 1, borderColor: theme.primary, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-  actionText: { color: theme.primary, fontWeight: '700' },
+  action: { flex: 1, backgroundColor: theme.ink, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  actionText: { color: theme.onInk, fontWeight: '800' },
   section: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 12 },
   input: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, color: theme.text },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border },

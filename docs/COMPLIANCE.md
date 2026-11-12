@@ -30,7 +30,7 @@
 
 ## 2. Operating model
 
-Puente is the **technology and customer layer**. Regulated activities are performed by **licensed partners** under their licenses (partner interfaces: `packages/core/src/providers.ts`):
+Kame is the **technology and customer layer**. Regulated activities are performed by **licensed partners** under their licenses (partner interfaces: `packages/core/src/providers.ts`):
 
 | Activity | Who | Note |
 |---|---|---|
@@ -131,8 +131,8 @@ An independent adversarial review of this code (Nov 2026) found 10 defects, incl
 - [x] Review console **UI** at `/staff`:
   - Strict CSP (`'self'` only), no framing, `no-store`.
   - Every value is rendered as text, never HTML; a stored-XSS payload in a customer field was verified inert in Chromium.
-- [ ] Staff SSO + hardware-key MFA (staff tokens are currently issued by `npm run staff -w @puente/api`)
-- [x] **Daily job** (`npm run jobs:daily -w @puente/api`): the full report is stored in append-only `job_runs`, and the job exits non-zero on any failure so the scheduler alerts.
+- [ ] Staff SSO + hardware-key MFA (staff tokens are currently issued by `npm run staff -w @kame/api`)
+- [x] **Daily job** (`npm run jobs:daily -w @kame/api`): the full report is stored in append-only `job_runs`, and the job exits non-zero on any failure so the scheduler alerts.
   - **Reconciliation:** every balance re-derived from ledger entries (this catches even trigger-bypassing edits); net zero per currency; routing invariant; `compliance_hold` vs. open cases; `payout_clearing` vs. in-flight withdrawals; `blocked_funds` vs. filed OFAC blocked-property amounts; `custody_float` vs. the custodian's omnibus balance.
   - **Deadlines:** OFAC reports overdue (fails the run) or due within 3 business days; review cases past the 48h SLA; withdrawals flagged or unconfirmed after 24h.
   - **Re-screening:** customers re-screened every 30 days, with each result kept in append-only `person_screenings`. A confirmed match freezes the account and opens a case; a potential match opens a case.

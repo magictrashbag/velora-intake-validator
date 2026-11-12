@@ -1,4 +1,4 @@
-import type { CustodyProvider, Network } from '@puente/core';
+import type { CustodyProvider, Network } from '@kame/core';
 import type { Db } from '../db.ts';
 import { audit } from '../audit.ts';
 

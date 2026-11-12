@@ -1,7 +1,7 @@
 import {
   evaluateTransfer, requiresOfacReport, addBusinessDays, customerFacingReasons, DEFAULT_POLICY,
   type Currency, type Party, type TransferContext, type KycTier,
-} from '@puente/core';
+} from '@kame/core';
 import type { Tx } from './db.ts';
 import type { Config } from './config.ts';
 import { AppError } from './errors.ts';

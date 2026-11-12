@@ -1,20 +1,21 @@
 {
-  "name": "@puente/api",
+  "name": "@kame/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --import tsx --watch src/server.ts",
-    "start": "node --import tsx src/server.ts",
-    "migrate": "node --import tsx src/migrate.ts",
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/server.ts",
+    "start": "node --env-file-if-exists=../../.env --import tsx src/server.ts",
+    "migrate": "node --env-file-if-exists=../../.env --import tsx src/migrate.ts",
     "typecheck": "tsc -p .",
-    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
-    "staff": "node --import tsx src/cli/staff.ts",
-    "worker": "node --import tsx src/workers/run.ts",
-    "jobs:daily": "node --import tsx src/jobs/run-daily.ts"
+    "test": "node --env-file-if-exists=../../.env --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "staff": "node --env-file-if-exists=../../.env --import tsx src/cli/staff.ts",
+    "worker": "node --env-file-if-exists=../../.env --import tsx src/workers/run.ts",
+    "jobs:daily": "node --env-file-if-exists=../../.env --import tsx src/jobs/run-daily.ts",
+    "seed": "node --env-file-if-exists=../../.env --import tsx src/cli/seed-demo.ts"
   },
   "dependencies": {
-    "@puente/core": "0.1.0",
+    "@kame/core": "0.1.0",
     "fastify": "^5.12.8",
     "pg": "^8.23.1"
   },

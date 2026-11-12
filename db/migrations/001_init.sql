@@ -1,4 +1,4 @@
--- Puente initial schema.
+-- Kame initial schema.
 -- Design rules enforced HERE (not just in app code), so a bug or a bad manual query
 -- cannot corrupt money:
 --   1. Double-entry: every ledger transaction's entries sum to zero per currency (checked at COMMIT).

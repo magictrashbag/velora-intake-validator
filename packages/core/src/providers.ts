@@ -1,5 +1,5 @@
 /**
- * Boundaries to LICENSED partners. Puente never custodies crypto keys, issues cards, or
+ * Boundaries to LICENSED partners. Kame never custodies crypto keys, issues cards, or
  * performs identity verification itself; those are regulated activities done by partners
  * under their licenses. Each interface has a mock in apps/api/src/providers/mock.ts.
  */
@@ -45,6 +45,6 @@ export interface BolivarPayoutProvider {
 }
 
 export interface CardIssuer {
-  /** Card data (PAN/CVV) stays with the issuer-processor; Puente only stores the token. */
+  /** Card data (PAN/CVV) stays with the issuer-processor; Kame only stores the token. */
   issueVirtualCard(userId: string): Promise<{ cardToken: string; last4: string }>;
 }

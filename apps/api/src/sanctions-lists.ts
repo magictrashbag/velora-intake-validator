@@ -3,7 +3,7 @@
  * transactions for connections to a listed address). Also provides the local denylist wrapper
  * that every address screening goes through.
  */
-import { isNetwork, isValidAddress, normalizeAddress, type Network, type SanctionsScreener } from '@puente/core';
+import { isNetwork, isValidAddress, normalizeAddress, type Network, type SanctionsScreener } from '@kame/core';
 import type { Db } from './db.ts';
 import { withTx } from './db.ts';
 import { AppError } from './errors.ts';

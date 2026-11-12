@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { CURRENCIES, formatAmount, type Currency } from '@puente/core';
+import { CURRENCIES, formatAmount, type Currency } from '@kame/core';
 import type { Deps } from '../app.ts';
 import { requireAuth } from '../auth.ts';
 

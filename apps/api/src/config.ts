@@ -24,7 +24,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const custodyWebhookSecret = env.CUSTODY_WEBHOOK_SECRET ?? (devMode ? 'dev-only-webhook-secret' : '');
   if (!custodyWebhookSecret) throw new Error('CUSTODY_WEBHOOK_SECRET is required outside development');
   return {
-    databaseUrl: env.DATABASE_URL ?? 'postgres://puente:puente@localhost:5432/puente',
+    databaseUrl: env.DATABASE_URL ?? 'postgres://kame:kame@localhost:5432/kame',
     port: Number(env.PORT ?? 3000),
     devMode,
     otpPepper,

@@ -6,12 +6,12 @@ jobs:
     services:
       postgres:
         image: postgres:16
-        env: { POSTGRES_USER: puente, POSTGRES_PASSWORD: puente, POSTGRES_DB: postgres }
+        env: { POSTGRES_USER: kame, POSTGRES_PASSWORD: kame, POSTGRES_DB: postgres }
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U puente" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U kame" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgres://puente:puente@localhost:5432/postgres
+      DATABASE_URL: postgres://kame:kame@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -27,7 +27,7 @@ t('profile shows own details, tier limits and a payment-only QR payload', async 
   assert.equal(me.phone, u.phone);
   assert.equal(me.name, 'Ana María Pérez');
   assert.deepEqual(me.limits, { per_transaction_usd: '500.00', daily_usd: '500.00', monthly_usd: '2000.00' });
-  assert.equal(me.payment_uri, `puente://pagar?tel=${encodeURIComponent(u.phone)}`);
+  assert.equal(me.payment_uri, `kame://pagar?tel=${encodeURIComponent(u.phone)}`);
   const anon = await login(app);
   assert.equal((await app.inject({ method: 'GET', url: '/v1/me', headers: anon.h })).json().limits, null, 'tier 0: no sending limits');
   assert.equal((await app.inject({ method: 'GET', url: '/v1/me' })).statusCode, 401);

@@ -60,7 +60,7 @@ export function ProfileScreen({ token, initialTab = 'code', onBack, onLogout, on
           {me ? <QrCode value={me.payment_uri} size={232} /> : <View style={{ height: 232 }} />}
           <Text style={[styles.muted, styles.center]}>Muestra este código para recibir dólares. Solo contiene tu número.</Text>
           <Button title="Compartir mi código" onPress={() => me && Share.share({
-            message: `Envíame dólares con Puente al ${me.phone} — ${me.payment_uri}`,
+            message: `Envíame dólares con Kame al ${me.phone} — ${me.payment_uri}`,
           })} />
         </View>
       ) : (
@@ -123,23 +123,23 @@ function Scanner({ onPay }: { onPay: (phone: string) => void }) {
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={handled ? undefined : ({ data }) => {
             const p = parsePaymentUri(data);
-            if (!p) { setError('Este código no es de Puente.'); return; }
+            if (!p) { setError('Este código no es de Kame.'); return; }
             setHandled(true);
             onPay(p.phone);
           }}
         />
       </View>
-      <Text style={[error ? styles.warn : styles.muted, styles.center]}>{error ?? 'Apunta al código Puente de quien recibirá el dinero.'}</Text>
+      <Text style={[error ? styles.warn : styles.muted, styles.center]}>{error ?? 'Apunta al código Kame de quien recibirá el dinero.'}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 20, paddingTop: 60, gap: 16 },
-  link: { color: theme.primary, fontSize: 16 },
+  link: { color: theme.ink, fontSize: 16, fontWeight: '600' },
   head: { alignItems: 'center', gap: 4 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  avatarText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  avatarText: { color: theme.onPrimary, fontSize: 26, fontWeight: '800' },
   name: { fontSize: 22, fontWeight: '800', color: theme.text, textAlign: 'center' },
   muted: { color: theme.muted },
   center: { textAlign: 'center' },

@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import { MoneyError, type FxRateProvider, type SanctionsScreener } from '@puente/core';
+import { MoneyError, type FxRateProvider, type SanctionsScreener } from '@kame/core';
 import type { Config } from './config.ts';
 import type { Db } from './db.ts';
 import { AppError } from './errors.ts';
@@ -39,6 +39,23 @@ export async function buildApp(d: {
     trustProxy: d.config.trustProxy,
   };
   const app = Fastify(opts);
+
+  // DEVELOPMENT ONLY: let the Expo web preview (http://localhost:<port>) call the API from the
+  // browser. Production serves no CORS headers at all; native apps don't need them.
+  if (d.config.devMode) {
+    app.addHook('onRequest', async (req, reply) => {
+      const origin = req.headers.origin;
+      if (!origin || !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return;
+      reply.header('access-control-allow-origin', origin).header('vary', 'origin');
+      if (req.method === 'OPTIONS') {
+        return reply
+          .header('access-control-allow-methods', 'GET, POST')
+          .header('access-control-allow-headers', 'authorization, content-type, idempotency-key')
+          .header('access-control-max-age', '600')
+          .code(204).send();
+      }
+    });
+  }
 
   // Keep the raw body for webhook signature verification.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {

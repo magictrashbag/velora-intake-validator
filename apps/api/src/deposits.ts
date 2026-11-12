@@ -1,7 +1,7 @@
 import {
   evaluateTransfer, requiresOfacReport, addBusinessDays, normalizeAddress, parseAmount, usdCentsEquivalent,
   type Network, type SanctionsScreener,
-} from '@puente/core';
+} from '@kame/core';
 import type { Db } from './db.ts';
 import { withTx } from './db.ts';
 import type { Config } from './config.ts';

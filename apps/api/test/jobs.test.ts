@@ -147,8 +147,8 @@ t('re-screening never downgrades a confirmed match; officers cannot unfreeze it'
   const st = await db.query('SELECT status, screening FROM users WHERE id = $1', [uid]);
   assert.deepEqual(st.rows[0], { status: 'frozen', screening: 'confirmed_match' });
   const { issueStaffToken } = await import('../src/staff.ts');
-  const o1 = { authorization: `Bearer ${(await issueStaffToken(db, 'o1@puente.test', 'compliance_officer')).token}` };
-  const o2 = { authorization: `Bearer ${(await issueStaffToken(db, 'o2@puente.test', 'compliance_officer')).token}` };
+  const o1 = { authorization: `Bearer ${(await issueStaffToken(db, 'o1@kame.test', 'compliance_officer')).token}` };
+  const o2 = { authorization: `Bearer ${(await issueStaffToken(db, 'o2@kame.test', 'compliance_officer')).token}` };
   const c = (await db.query(`SELECT id FROM review_cases WHERE subject_id = $1 AND status IN ('open','awaiting_second_approval')`, [uid])).rows[0];
   const act = (h: object) => app.inject({ method: 'POST', url: `/v1/staff/cases/${c.id}/approve`, headers: h as any, payload: { note: 'requesting unfreeze' } });
   await act(o1);

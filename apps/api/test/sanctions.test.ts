@@ -15,8 +15,8 @@ let reviewer: Record<string, string>;
 before(async () => {
   if (!haveDb) return;
   ({ app, db, teardown } = await setup());
-  officer = { authorization: `Bearer ${(await issueStaffToken(db, 'co@puente.test', 'compliance_officer')).token}` };
-  reviewer = { authorization: `Bearer ${(await issueStaffToken(db, 'rv@puente.test', 'reviewer')).token}` };
+  officer = { authorization: `Bearer ${(await issueStaffToken(db, 'co@kame.test', 'compliance_officer')).token}` };
+  reviewer = { authorization: `Bearer ${(await issueStaffToken(db, 'rv@kame.test', 'reviewer')).token}` };
 });
 after(async () => { if (haveDb) await teardown(); });
 const t = (name: string, fn: () => Promise<void>) => test(name, { skip: !haveDb && 'DATABASE_URL not set' }, fn);

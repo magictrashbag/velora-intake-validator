@@ -1,6 +1,10 @@
-# Puente — Product Spec (v0.1)
+# Kame — Product Spec (v0.1)
 
-> "Puente" is a working name. Check trademarks in Venezuela, the US and Colombia before using it publicly.
+> **Kame** (Japanese for "turtle": your money protected like a shell) is a working name.
+> - Run a trademark search before launch: SAPI (Venezuela), USPTO (US), SIC (Colombia), and the app stores.
+> - Keep the branding original. "Kame" is a common word, but imagery or wording that evokes a well-known franchise (characters, symbols, catchphrases) would invite claims from its rights holders.
+>
+> **Identity:** Kame gold `#FFC21A` and ink `#111111`. Gold is used only for surfaces, with ink text on top; it is never used as text on light backgrounds. The mark is a turtle seen from above, in `apps/mobile/src/components/KameMark.tsx`.
 
 ## 1. Problem
 

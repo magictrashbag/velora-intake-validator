@@ -1,24 +1,24 @@
 {
   "expo": {
-    "name": "Puente",
-    "slug": "puente",
+    "name": "Kame",
+    "slug": "kame",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.puente.app"
+      "bundleIdentifier": "com.kame.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFC21A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.puente.app",
+      "package": "com.kame.app",
       "allowBackup": false
     },
     "web": {
@@ -28,7 +28,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Puente usa la c\u00e1mara solo para escanear c\u00f3digos QR de pago.",
+          "cameraPermission": "Kame usa la c\u00e1mara solo para escanear c\u00f3digos QR de pago.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

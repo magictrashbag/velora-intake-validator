@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { DEFAULT_POLICY, formatAmount, type KycTier } from '@puente/core';
+import { DEFAULT_POLICY, formatAmount, type KycTier } from '@kame/core';
 import type { Deps } from '../app.ts';
 import { requireAuth } from '../auth.ts';
 import { AppError } from '../errors.ts';
@@ -45,7 +45,7 @@ export async function profileRoutes(app: FastifyInstance, { db }: Deps) {
         : null,
       // What the QR code encodes: a public payment handle only. Scanning it prefills a send form;
       // it can never move money by itself.
-      payment_uri: `puente://pagar?tel=${encodeURIComponent(u.phone)}`,
+      payment_uri: `kame://pagar?tel=${encodeURIComponent(u.phone)}`,
     };
   });
 
@@ -66,6 +66,6 @@ export async function profileRoutes(app: FastifyInstance, { db }: Deps) {
     const u = r.rows[0];
     // Same response for "no account" and "closed" so the endpoint doesn't reveal account state.
     if (!u || u.status === 'closed') return { found: false };
-    return { found: true, display_name: maskName(u.legal_name) ?? 'Usuario Puente' };
+    return { found: true, display_name: maskName(u.legal_name) ?? 'Usuario Kame' };
   });
 }

@@ -1,14 +1,23 @@
 {
-  "name": "puente",
+  "name": "kame",
   "private": true,
   "description": "USD stablecoin wallet, remittances, Bs<->USD exchange and payments for Venezuela (working name).",
-  "workspaces": ["packages/*", "apps/*"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.9"
+  },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "db:migrate": "npm run migrate -w @puente/api",
-    "dev:api": "npm run dev -w @puente/api",
-    "dev:mobile": "npm run start -w @puente/mobile"
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w @kame/api",
+    "seed": "npm run seed -w @kame/api",
+    "dev:api": "npm run dev -w @kame/api",
+    "dev:mobile": "npm run start -w @kame/mobile",
+    "dev:web": "npm run web -w @kame/mobile"
   }
 }

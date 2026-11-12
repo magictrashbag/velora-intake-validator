@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import {
   parseAmount, usdCentsEquivalent, isNetwork, isValidAddress, normalizeAddress, MoneyError, formatAmount, NETWORKS,
-} from '@puente/core';
+} from '@kame/core';
 import type { Deps } from '../app.ts';
 import { requireAuth, safeEqual } from '../auth.ts';
 import { withTx } from '../db.ts';

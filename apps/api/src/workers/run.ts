@@ -1,4 +1,4 @@
-// Withdrawal worker loop. Usage: DATABASE_URL=... NODE_ENV=development npm run worker -w @puente/api
+// Withdrawal worker loop. Usage: DATABASE_URL=... NODE_ENV=development npm run worker -w @kame/api
 import { createPool } from '../db.ts';
 import { mockCustody } from '../providers/mock.ts';
 import { runWithdrawalWorker } from './withdrawals.ts';

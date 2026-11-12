@@ -9,7 +9,7 @@ No framework is compliant on its own. Compliance comes from **what the system gu
 | Mobile | Expo (React Native) + TypeScript | One codebase for Android (most of the market) and iOS; tokens kept in the OS keychain/keystore via `expo-secure-store` |
 | API | Node 22 + Fastify 5 + TypeScript (strict) | JSON-schema validation on every route; small dependency surface |
 | Database | PostgreSQL 16 | Transactions, row locks, CHECK constraints and triggers let the **database** enforce money invariants |
-| Domain | `@puente/core` (pure TS, no I/O) | Money math and the compliance gate are pure functions: exhaustively testable, replayable for auditors |
+| Domain | `@kame/core` (pure TS, no I/O) | Money math and the compliance gate are pure functions: exhaustively testable, replayable for auditors |
 | Hosting (planned) | A SOC 2 / PCI-attested cloud, managed Postgres with PITR, KMS-managed secrets, WAF | Inherit the controls auditors ask for |
 
 ## Components
@@ -17,7 +17,7 @@ No framework is compliant on its own. Compliance comes from **what the system gu
 ```
  Expo app ──HTTPS──▶ Fastify API ──▶ Postgres (ledger, audit, decisions)
                        │
-                       ├── @puente/core: money · fx · compliance gate
+                       ├── @kame/core: money · fx · compliance gate
                        └── Partner adapters (packages/core/src/providers.ts)
                              KYC · Party + address screening · Custody (USDC) · Bs payout (Pago Móvil)
                              · FX rate source · Card issuer · SMS/WhatsApp OTP

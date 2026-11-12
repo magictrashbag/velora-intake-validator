@@ -11,7 +11,7 @@ export const haveDb = Boolean(ADMIN_URL);
 
 /** Fresh, migrated database per test file; dropped afterwards. */
 export async function setup(): Promise<{ app: FastifyInstance; db: Db; teardown: () => Promise<void> }> {
-  const name = `puente_test_${randomUUID().replace(/-/g, '')}`;
+  const name = `kame_test_${randomUUID().replace(/-/g, '')}`;
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   await admin.connect();
   await admin.query(`CREATE DATABASE ${name}`);

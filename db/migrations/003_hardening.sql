@@ -6,10 +6,10 @@
 --    without DDL/superuser rights, and daily reconciliation re-derives balances from entries.)
 CREATE OR REPLACE FUNCTION ledger_apply_entry() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  PERFORM set_config('puente.ledger_apply', 'on', true);
+  PERFORM set_config('kame.ledger_apply', 'on', true);
   UPDATE accounts SET balance = balance + NEW.amount
    WHERE id = NEW.account_id AND currency = NEW.currency;
-  PERFORM set_config('puente.ledger_apply', 'off', true);
+  PERFORM set_config('kame.ledger_apply', 'off', true);
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ledger: account % has no currency %', NEW.account_id, NEW.currency;
   END IF;
@@ -25,7 +25,7 @@ BEGIN
      OR NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id THEN
     RAISE EXCEPTION 'accounts: id/kind/currency/owner are immutable';
   END IF;
-  IF NEW.balance <> OLD.balance AND coalesce(current_setting('puente.ledger_apply', true), 'off') <> 'on' THEN
+  IF NEW.balance <> OLD.balance AND coalesce(current_setting('kame.ledger_apply', true), 'off') <> 'on' THEN
     RAISE EXCEPTION 'accounts: balance can only change via ledger entries';
   END IF;
   RETURN NEW;

@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 // Session token lives in the OS keychain/keystore, never AsyncStorage (plaintext on disk).
-const KEY = 'puente.session';
+const KEY = 'kame.session';
 
 // Web is a development preview only. The token stays in memory (lost on reload) rather than in
 // browser storage, so the web build never weakens how credentials are stored.

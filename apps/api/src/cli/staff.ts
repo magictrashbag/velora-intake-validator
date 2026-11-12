@@ -1,4 +1,4 @@
-// Usage: DATABASE_URL=... npm run staff -w @puente/api -- create <email> <reviewer|compliance_officer|admin>
+// Usage: DATABASE_URL=... npm run staff -w @kame/api -- create <email> <reviewer|compliance_officer|admin>
 import { createPool } from '../db.ts';
 import { issueStaffToken, type StaffRole } from '../staff.ts';
 

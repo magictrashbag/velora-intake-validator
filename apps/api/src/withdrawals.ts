@@ -3,7 +3,7 @@ import { withTx } from './db.ts';
 import { AppError } from './errors.ts';
 import { audit } from './audit.ts';
 import { lockWallet, postLedgerTxn, systemAccount } from './ledger.ts';
-import { addBusinessDays } from '@puente/core';
+import { addBusinessDays } from '@kame/core';
 
 /**
  * Apply the custodian's final word on a withdrawal.
