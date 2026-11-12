@@ -76,6 +76,9 @@ export async function fxRoutes(app: FastifyInstance, { db, config, fx }: Deps) {
         body: { quote_id: q.id },
         ip: req.ip,
         debit: { currency: sell, minor: sellMinor },
+        // A held trade executes later at THIS firm quote: the customer accepted these amounts,
+        // and the house carries the FX risk during review.
+        details: { quote_id: q.id, sell, sell_minor: sellMinor.toString(), buy, buy_minor: buyMinor.toString() },
         precheck: async () => { if (!q.live) throw new AppError(409, 'quote_expired'); },
         post: async (tx) => {
           const from = await lockWallet(tx, me.id, sell);

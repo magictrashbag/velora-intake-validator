@@ -67,3 +67,11 @@ The API tests run against real Postgres and check the properties that matter for
 | POST | `/v1/webhooks/custody/deposits` | custodian only; HMAC `x-signature` over `x-timestamp.body` |
 
 Amounts are decimal **strings**, never JSON numbers.
+
+**Staff (review console)**, with separate tokens issued by `DATABASE_URL=... npm run staff -w @puente/api -- create <email> <reviewer|compliance_officer|admin>`:
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/staff/cases` | open + awaiting-second-approval cases, with internal reasons |
+| GET | `/v1/staff/cases/:id` | subject, every compliance decision, every staff action |
+| POST | `/v1/staff/cases/:id/{approve,reject,block,comment}` | `{note}` required; approve is four-eyes; unfreeze needs compliance officers |

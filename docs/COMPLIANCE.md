@@ -112,8 +112,13 @@ An independent adversarial review of this code (Nov 2026) found 10 defects, incl
 - [ ] Partner contracts: two per rail (custody, on-ramp, Bs payout, screening/analytics)
 
 **Engineering**
-- [ ] **Review console**: release or deny held transfers (the reserve is already in `compliance_hold`; release = `hold_release` leg + the original posting) and held deposits, four-eyes approval, audit-logged. Held FX trades must be re-quoted on release
-- [ ] Unfreeze workflow for auto-frozen accounts (compliance officer only)
+- [x] **Review console API** (`/v1/staff/cases`):
+  - Four-eyes approval for transfers, deposits and unfreezes.
+  - At execution the gate re-runs on current facts, with fresh address screening. If it would now deny, or raise new review reasons, execution is refused and the refusal is recorded.
+  - Reject (refund) or block (blocked property + OFAC report) needs one reviewer.
+  - Append-only `review_actions`.
+  - Held FX trades execute at the customer's original firm quote; the house carries the FX risk during review.
+- [ ] Review console **UI**, and staff SSO + hardware-key MFA (staff tokens are currently issued by `npm run staff -w @puente/api`)
 - [ ] Ongoing re-screening of all users and counterparties on list updates; retroactive address review when OFAC adds an address
 - [ ] Daily OFAC-report deadline alerting; annual blocked-property report export
 - [ ] Transaction monitoring beyond the gate: rapid in/out, fan-in/fan-out, mule networks, P2P cycling

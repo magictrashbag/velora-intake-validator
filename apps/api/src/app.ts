@@ -10,6 +10,7 @@ import { transferRoutes } from './routes/transfers.ts';
 import { fxRoutes } from './routes/fx.ts';
 import { devRoutes } from './routes/dev.ts';
 import { cryptoRoutes } from './routes/crypto.ts';
+import { staffRoutes } from './routes/staff.ts';
 
 export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider; screener: SanctionsScreener }
 
@@ -58,6 +59,7 @@ export async function buildApp(d: {
   await transferRoutes(app, deps);
   await fxRoutes(app, deps);
   await cryptoRoutes(app, deps);
+  await staffRoutes(app, deps);
   if (d.config.devMode) await devRoutes(app, deps);
   return app;
 }

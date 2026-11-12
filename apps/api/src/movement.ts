@@ -45,6 +45,8 @@ export interface MovementRequest {
   precheck?: (tx: Tx) => Promise<void>;
   /** Posts ledger legs; only called when the gate says allow. Returns ledger txn id. */
   post: (tx: Tx) => Promise<string>;
+  /** Everything needed to execute this transfer later if it is held (address, quote amounts...). */
+  details?: Record<string, unknown>;
   /** Runs after the transfer row exists, in the same DB transaction (e.g. outbox rows). */
   afterRecord?: (tx: Tx, transferId: string, status: MovementResult['status']) => Promise<void>;
 }
@@ -55,7 +57,7 @@ export interface MovementResult {
   reasons?: string[];
 }
 
-const PARTY_SQL = `SELECT id, status, kyc_tier, screening, country, legal_name,
+export const PARTY_SQL = `SELECT id, status, kyc_tier, screening, country, legal_name,
                           floor(extract(epoch FROM now() - created_at) / 86400)::int AS age_days
                      FROM users WHERE id = $1`;
 
@@ -101,35 +103,15 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
   }
 
   const p = DEFAULT_POLICY;
-  const vol = await tx.query<{ d: bigint; m: bigint; near: number }>(
-    `SELECT coalesce(sum(amount_usd_cents) FILTER (WHERE created_at > now() - interval '24 hours'), 0)::bigint AS d,
-            coalesce(sum(amount_usd_cents), 0)::bigint AS m,
-            count(*) FILTER (WHERE created_at > now() - interval '24 hours' AND (
-                (amount_usd_cents < $2 AND amount_usd_cents * 10 >= $2 * 9) OR
-                (amount_usd_cents < $3 AND amount_usd_cents * 10 >= $3 * 9)))::int AS near
-       FROM transfers
-      WHERE sender_user_id = $1 AND status IN ('posted','held_for_review')
-        AND created_at > now() - interval '30 days'`,
-    [m.senderId, p.travelRuleThresholdUsdCents.toString(), p.reviewAboveUsdCents.toString()]);
-
-  // Travel Rule: the ORIGINATOR name comes from the KYC record, never from the request body.
-  // A missing legal name leaves originatorName empty, which the gate treats as incomplete.
-  const travelRule = m.travelRuleBeneficiary
-    ? { originatorName: sender.legal_name ?? '', ...m.travelRuleBeneficiary }
-    : undefined;
-
-  const ctx: TransferContext = {
+  const ctx = await buildTransferContext(tx, {
     kind: m.kind,
-    sender: partyFromRow(sender),
+    senderRow: sender,
     ...(recipient ? { recipient } : {}),
     ...(m.recipientBankCode ? { recipientBankCode: m.recipientBankCode } : {}),
     ...(m.counterpartyAddress ? { counterpartyAddress: m.counterpartyAddress } : {}),
-    ...(travelRule ? { travelRule } : {}),
+    ...(m.travelRuleBeneficiary ? { travelRuleBeneficiary: m.travelRuleBeneficiary } : {}),
     amountUsdCents: m.amountUsdCents,
-    sentLast24hUsdCents: vol.rows[0]!.d,
-    sentLast30dUsdCents: vol.rows[0]!.m,
-    recentNearThresholdCount: vol.rows[0]!.near,
-  };
+  });
   const decision = evaluateTransfer(ctx, p);
 
   const status = decision.outcome === 'allow' ? 'posted' : decision.outcome === 'review' ? 'held_for_review' : 'denied';
@@ -147,11 +129,17 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
 
   const t = await tx.query<{ id: string }>(
     `INSERT INTO transfers (sender_user_id, recipient_user_id, kind, currency, amount_minor, amount_usd_cents,
-                            status, ledger_txn_id, hold_ledger_txn_id, idempotency_key, request_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+                            status, ledger_txn_id, hold_ledger_txn_id, idempotency_key, request_hash, details)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
     [m.senderId, m.recipientId ?? null, m.kind, m.currency, m.amountMinor.toString(), m.amountUsdCents.toString(),
-     status, ledgerTxnId, holdTxnId, m.idempotencyKey, requestHash]);
+     status, ledgerTxnId, holdTxnId, m.idempotencyKey, requestHash,
+     canonicalJson({
+       ...(m.details ?? {}),
+       ...(m.travelRuleBeneficiary ? { travel_rule_beneficiary: m.travelRuleBeneficiary } : {}),
+       ...(m.recipientBankCode ? { recipient_bank_code: m.recipientBankCode } : {}),
+     })]);
   const transferId = t.rows[0]!.id;
+  if (status === 'held_for_review') await openReviewCase(tx, 'transfer', transferId, m.senderId, decision.reasons);
 
   await tx.query(
     `INSERT INTO compliance_decisions (user_id, transfer_id, outcome, reasons, context, policy_version)
@@ -182,7 +170,8 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
                        WHERE r = 'address_sanctioned' OR r LIKE '%\_sanctions\_match' OR r LIKE '%\_jurisdiction\_blocked')`,
       [m.senderId]);
     if (strikes.rows[0]!.n >= SANCTIONS_STRIKES_TO_FREEZE) {
-      await tx.query(`UPDATE users SET status = 'frozen' WHERE id = $1 AND status = 'active'`, [m.senderId]);
+      const fr = await tx.query(`UPDATE users SET status = 'frozen' WHERE id = $1 AND status = 'active'`, [m.senderId]);
+      if (fr.rowCount) await openReviewCase(tx, 'user', m.senderId, m.senderId, ['auto_frozen_sanctions_strikes']);
       await audit(tx, { actor: null, action: 'user.auto_frozen', subject: m.senderId, details: { strikes: strikes.rows[0]!.n } });
     }
   }
@@ -191,6 +180,63 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
   await audit(tx, { actor: m.senderId, action: `transfer.${status}`, subject: transferId, details: { kind: m.kind }, ...(m.ip ? { ip: m.ip } : {}) });
 
   return result(transferId, status, decision.reasons);
+}
+
+export interface ContextInput {
+  kind: TransferContext['kind'];
+  /** Row from PARTY_SQL (needs legal_name for the Travel Rule). */
+  senderRow: any;
+  recipient?: Party;
+  recipientBankCode?: string;
+  counterpartyAddress?: TransferContext['counterpartyAddress'];
+  travelRuleBeneficiary?: MovementRequest['travelRuleBeneficiary'];
+  amountUsdCents: bigint;
+  /** When re-evaluating a held transfer, leave it out of its own rolling volume. */
+  excludeTransferId?: string;
+}
+
+/** Build the gate's input from CURRENT database state. Used at request time and again when a
+ *  reviewer approves a held item, so approval is always judged on today's facts. */
+export async function buildTransferContext(tx: Tx, c: ContextInput): Promise<TransferContext> {
+  const p = DEFAULT_POLICY;
+  const vol = await tx.query<{ d: bigint; m: bigint; near: number }>(
+    `SELECT coalesce(sum(amount_usd_cents) FILTER (WHERE created_at > now() - interval '24 hours'), 0)::bigint AS d,
+            coalesce(sum(amount_usd_cents), 0)::bigint AS m,
+            count(*) FILTER (WHERE created_at > now() - interval '24 hours' AND (
+                (amount_usd_cents < $2 AND amount_usd_cents * 10 >= $2 * 9) OR
+                (amount_usd_cents < $3 AND amount_usd_cents * 10 >= $3 * 9)))::int AS near
+       FROM transfers
+      WHERE sender_user_id = $1 AND status IN ('posted','held_for_review')
+        AND created_at > now() - interval '30 days'
+        AND ($4::uuid IS NULL OR id <> $4::uuid)`,
+    [c.senderRow.id, p.travelRuleThresholdUsdCents.toString(), p.reviewAboveUsdCents.toString(), c.excludeTransferId ?? null]);
+
+  // Travel Rule: the ORIGINATOR name comes from the KYC record, never from the request body.
+  // A missing legal name leaves originatorName empty, which the gate treats as incomplete.
+  const travelRule = c.travelRuleBeneficiary
+    ? { originatorName: c.senderRow.legal_name ?? '', ...c.travelRuleBeneficiary }
+    : undefined;
+
+  return {
+    kind: c.kind,
+    sender: partyFromRow(c.senderRow),
+    ...(c.recipient ? { recipient: c.recipient } : {}),
+    ...(c.recipientBankCode ? { recipientBankCode: c.recipientBankCode } : {}),
+    ...(c.counterpartyAddress ? { counterpartyAddress: c.counterpartyAddress } : {}),
+    ...(travelRule ? { travelRule } : {}),
+    amountUsdCents: c.amountUsdCents,
+    sentLast24hUsdCents: vol.rows[0]!.d,
+    sentLast30dUsdCents: vol.rows[0]!.m,
+    recentNearThresholdCount: vol.rows[0]!.near,
+  };
+}
+
+export async function openReviewCase(
+  tx: Tx, subjectType: 'transfer' | 'deposit' | 'user', subjectId: string, userId: string, reasons: string[],
+) {
+  await tx.query(
+    `INSERT INTO review_cases (subject_type, subject_id, user_id, reasons) VALUES ($1,$2,$3,$4)
+     ON CONFLICT DO NOTHING`, [subjectType, subjectId, userId, reasons]);
 }
 
 async function replay(tx: Tx, id: string, status: MovementResult['status']): Promise<MovementResult> {

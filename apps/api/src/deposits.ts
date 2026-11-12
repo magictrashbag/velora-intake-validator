@@ -8,7 +8,7 @@ import type { Config } from './config.ts';
 import { AppError } from './errors.ts';
 import { audit, jsonBigint } from './audit.ts';
 import { postLedgerTxn, systemAccount } from './ledger.ts';
-import { partyFromRow } from './movement.ts';
+import { partyFromRow, openReviewCase } from './movement.ts';
 
 export interface DepositEvent {
   userId: string;
@@ -105,6 +105,7 @@ export async function processCryptoDeposit(
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [ev.userId, depositId, decision.outcome, decision.reasons, JSON.stringify(ctx, jsonBigint), cfg.policyVersion]);
 
+    if (disposition === 'held') await openReviewCase(tx, 'deposit', depositId, ev.userId, decision.reasons);
     if (disposition === 'blocked') {
       await tx.query(
         `INSERT INTO ofac_reports (report_type, user_id, deposit_id, reasons, currency, amount_minor, due_by)

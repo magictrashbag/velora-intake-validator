@@ -8,7 +8,8 @@
     "start": "node --import tsx src/server.ts",
     "migrate": "node --import tsx src/migrate.ts",
     "typecheck": "tsc -p .",
-    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts"
+    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "staff": "node --import tsx src/cli/staff.ts"
   },
   "dependencies": {
     "@puente/core": "0.1.0",

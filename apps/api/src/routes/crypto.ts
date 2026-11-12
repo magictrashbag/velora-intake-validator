@@ -67,6 +67,7 @@ export async function cryptoRoutes(app: FastifyInstance, { db, config, screener 
       body: b,
       counterpartyAddress: { network, address, risk: scr.risk },
       debit: { currency: 'USDC', minor: amount.minor },
+      details: { network, address },
       ...(b.travel_rule ? {
         travelRuleBeneficiary: {
           beneficiaryName: b.travel_rule.beneficiary_name,
