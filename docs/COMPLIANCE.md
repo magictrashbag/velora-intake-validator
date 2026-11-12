@@ -125,7 +125,12 @@ An independent adversarial review of this code (Nov 2026) found 10 defects, incl
 - [ ] IP geolocation, VPN detection, device binding and step-up auth for sending
 - [ ] Travel Rule VASP-to-VASP messaging; ownership proof for self-hosted wallets (e.g. message signing)
 - [ ] Daily reconciliation: `custody_float` vs. custodian, `payout_clearing` vs. Bs partner, `blocked_funds` vs. OFAC filings
-- [ ] Withdrawal worker (outbox → custodian) with confirmation tracking
+- [x] Withdrawal worker (`src/workers/withdrawals.ts`):
+  - Workers claim withdrawals with `SKIP LOCKED`, so several can run in parallel without sending anything twice.
+  - Stale claims are re-sent with the same idempotency key.
+  - Repeated failures are flagged `needs_attention`. The worker **never refunds on its own errors**: a timeout may still have sent the funds.
+  - A signed confirm/fail webhook settles against `custody_float` or refunds the customer.
+- [ ] Real custodian integration + alerting on `needs_attention` withdrawals
 - [ ] An app DB role without superuser/DDL rights (DB triggers can be bypassed by a superuser), plus a daily job that re-derives every balance from ledger entries
 - [ ] Security: threat model, external pen test, secrets in KMS, DB role separation (app role cannot DDL), WAF/rate limits, incident response plan, bug bounty, SOC 2 readiness
 

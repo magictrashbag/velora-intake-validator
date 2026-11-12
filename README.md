@@ -65,6 +65,7 @@ The API tests run against real Postgres and check the properties that matter for
 | POST | `/v1/fx/quotes/:id/execute` | executes at most once |
 | POST | `/v1/crypto/withdrawals` | `Idempotency-Key`; `{network, address, amount, travel_rule?}`; address screened; Travel Rule ≥ US$1,000 |
 | POST | `/v1/webhooks/custody/deposits` | custodian only; HMAC `x-signature` over `x-timestamp.body` |
+| POST | `/v1/webhooks/custody/withdrawals` | custodian only; `confirmed` settles, `failed` refunds |
 
 Amounts are decimal **strings**, never JSON numbers.
 

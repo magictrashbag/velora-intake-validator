@@ -1,4 +1,4 @@
-import type { FxRateProvider, Currency, SanctionsScreener } from '@puente/core';
+import type { FxRateProvider, Currency, SanctionsScreener, CustodyProvider } from '@puente/core';
 
 /** Delivers OTP codes. Production: a licensed SMS/WhatsApp provider. */
 export interface SmsSender {
@@ -31,3 +31,18 @@ export const mockScreener: SanctionsScreener = {
     return { risk, providerRef: `mock:${risk}` };
   },
 };
+
+/** Custody mock for development/tests: records every withdraw call; `failNext` simulates outages. */
+export function mockCustody() {
+  const calls: { idempotencyKey: string; network: string; address: string; amountMinor: bigint }[] = [];
+  let failNext = 0;
+  const provider: CustodyProvider = {
+    async createDepositAddress() { return '0x' + '9'.repeat(40); },
+    async withdraw(req) {
+      if (failNext > 0) { failNext--; throw new Error('custodian timeout'); }
+      calls.push(req);
+      return { providerRef: `mock-wd-${req.idempotencyKey}` };
+    },
+  };
+  return { provider, calls, failTimes: (n: number) => { failNext = n; } };
+}

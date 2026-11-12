@@ -10,6 +10,7 @@ import { AppError } from '../errors.ts';
 import { lockWallet, postLedgerTxn, systemAccount } from '../ledger.ts';
 import { executeGatedMovement } from '../movement.ts';
 import { processCryptoDeposit } from '../deposits.ts';
+import { settleWithdrawal } from '../withdrawals.ts';
 
 interface WithdrawalBody {
   network: string;
@@ -129,13 +130,32 @@ export async function cryptoRoutes(app: FastifyInstance, { db, config, screener 
         fromAddress: b.from_address, amount: b.amount,
       });
     });
+
+  /** Custodian webhook: final status of an on-chain withdrawal. Same HMAC scheme as deposits. */
+  app.post<{ Body: { transfer_id: string; status: 'confirmed' | 'failed'; provider_ref: string; chain_tx_hash?: string; failure_reason?: string } }>(
+    '/v1/webhooks/custody/withdrawals', {
+      preValidation: async (req) =>
+        verifyWebhook(config.custodyWebhookSecret, req.headers['x-timestamp'], req.headers['x-signature'], (req as any).rawBody),
+      schema: {
+        body: {
+          type: 'object', required: ['transfer_id', 'status', 'provider_ref'], additionalProperties: false,
+          properties: {
+            transfer_id: { type: 'string', format: 'uuid' },
+            status: { type: 'string', enum: ['confirmed', 'failed'] },
+            provider_ref: { type: 'string', maxLength: 200 },
+            chain_tx_hash: { type: 'string', maxLength: 120 },
+            failure_reason: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
+    }, async (req) => settleWithdrawal(db, req.body));
 }
 
 export function signWebhook(secret: string, timestamp: string, rawBody: string): string {
   return 'sha256=' + createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
 }
 
-function verifyWebhook(secret: string, ts: unknown, sig: unknown, rawBody: unknown) {
+export function verifyWebhook(secret: string, ts: unknown, sig: unknown, rawBody: unknown) {
   if (typeof ts !== 'string' || typeof sig !== 'string' || typeof rawBody !== 'string') throw new AppError(401, 'bad_signature');
   const age = Math.abs(Date.now() / 1000 - Number(ts));
   if (!Number.isFinite(age) || age > 300) throw new AppError(401, 'stale_webhook');
