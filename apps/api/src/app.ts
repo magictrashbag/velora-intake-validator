@@ -13,6 +13,7 @@ import { cryptoRoutes } from './routes/crypto.ts';
 import { staffRoutes } from './routes/staff.ts';
 import { sanctionsRoutes } from './routes/sanctions.ts';
 import { consoleRoutes } from './routes/console.ts';
+import { profileRoutes } from './routes/profile.ts';
 import { withLocalDenylist } from './sanctions-lists.ts';
 
 export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider; screener: SanctionsScreener }
@@ -61,6 +62,7 @@ export async function buildApp(d: {
   app.get('/health', async () => ({ ok: true }));
   await authRoutes(app, deps);
   await walletRoutes(app, deps);
+  await profileRoutes(app, deps);
   await transferRoutes(app, deps);
   await fxRoutes(app, deps);
   await cryptoRoutes(app, deps);

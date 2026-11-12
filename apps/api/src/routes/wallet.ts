@@ -6,6 +6,7 @@ import { requireAuth } from '../auth.ts';
 export async function walletRoutes(app: FastifyInstance, { db }: Deps) {
   app.get('/v1/wallet', { onRequest: requireAuth(db) }, async (req) => {
     const u = req.user!;
+    const name = (await db.query('SELECT legal_name FROM users WHERE id = $1', [u.id])).rows[0]?.legal_name ?? null;
     const acc = await db.query<{ id: string; currency: Currency; balance: bigint }>(
       `SELECT id, currency, balance FROM accounts WHERE owner_user_id = $1 ORDER BY currency = 'USDC' DESC, currency`, [u.id]);
     const recent = await db.query<{ id: bigint; currency: Currency; amount: bigint; kind: string; description: string; created_at: Date }>(
@@ -14,7 +15,7 @@ export async function walletRoutes(app: FastifyInstance, { db }: Deps) {
         WHERE e.account_id = ANY($1) ORDER BY e.id DESC LIMIT 20`,
       [acc.rows.map((a) => a.id)]);
     return {
-      user: { id: u.id, phone: u.phone, kyc_tier: u.kycTier, status: u.status },
+      user: { id: u.id, phone: u.phone, name, kyc_tier: u.kycTier, status: u.status },
       balances: acc.rows.map((a) => ({
         currency: a.currency,
         label: CURRENCIES[a.currency].label,

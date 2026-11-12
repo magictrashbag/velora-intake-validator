@@ -58,9 +58,10 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: (token: string) => voi
   );
 }
 
-export function Button({ title, onPress, busy }: { title: string; onPress: () => void; busy?: boolean }) {
+export function Button({ title, onPress, busy, disabled }: { title: string; onPress: () => void; busy?: boolean; disabled?: boolean }) {
   return (
-    <Pressable style={[styles.button, busy && { opacity: 0.6 }]} onPress={onPress} disabled={busy} accessibilityRole="button">
+    <Pressable style={[styles.button, (busy || disabled) && { opacity: 0.5 }]} onPress={onPress} disabled={busy || disabled}
+      accessibilityRole="button" accessibilityState={{ disabled: Boolean(busy || disabled), busy: Boolean(busy) }}>
       {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{title}</Text>}
     </Pressable>
   );

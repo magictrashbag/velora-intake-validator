@@ -24,7 +24,7 @@ async function call<T>(path: string, init: { method?: string; token?: string | n
 }
 
 export interface Wallet {
-  user: { id: string; phone: string; kyc_tier: number; status: string };
+  user: { id: string; phone: string; name: string | null; kyc_tier: number; status: string };
   balances: { currency: 'USDC' | 'VES'; label: string; amount: string }[];
   activity: { id: string; kind: string; description: string; currency: string; amount: string; at: string }[];
 }
@@ -42,12 +42,28 @@ export interface Quote {
 
 export type Network = 'polygon' | 'base' | 'ethereum' | 'solana';
 
+export interface Me {
+  id: string;
+  phone: string;
+  name: string | null;
+  kyc_tier: 0 | 1 | 2;
+  status: string;
+  country: string;
+  member_since: string;
+  limits: { per_transaction_usd: string; daily_usd: string; monthly_usd: string } | null;
+  payment_uri: string;
+}
+
 export const api = {
   startOtp: (phone: string) => call<{ sent: boolean; dev_code?: string }>('/v1/auth/otp/start', { method: 'POST', body: { phone } }),
   verifyOtp: (phone: string, code: string) =>
     call<{ token: string }>('/v1/auth/otp/verify', { method: 'POST', body: { phone, code } }),
   logout: (token: string) => call('/v1/auth/logout', { method: 'POST', token }),
   wallet: (token: string) => call<Wallet>('/v1/wallet', { token }),
+  me: (token: string) => call<Me>('/v1/me', { token }),
+  /** Confirmation of payee: masked name for a phone, shown before the payer confirms. */
+  lookupRecipient: (token: string, phone: string) =>
+    call<{ found: boolean; display_name?: string }>(`/v1/recipients/lookup?phone=${encodeURIComponent(phone)}`, { token }),
   /** The idempotency key is created once per user intent and reused on retries, so a
    *  flaky connection can never send money twice. */
   newIdempotencyKey: () => randomUUID(),

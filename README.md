@@ -60,6 +60,8 @@ The API tests run against real Postgres and check the properties that matter for
 | POST | `/v1/auth/otp/verify` | `{phone, code}` → `{token}` |
 | POST | `/v1/auth/logout` | |
 | GET | `/v1/wallet` | balances + recent activity |
+| GET | `/v1/me` | profile, verification tier & limits, QR payment payload |
+| GET | `/v1/recipients/lookup?phone=` | masked name ("Luis M.") to confirm the payee before sending; 30/hour |
 | POST | `/v1/transfers` | `Idempotency-Key` header required; `{to_phone, amount, currency:"USDC"}` → 201 posted / 202 held / 403 denied |
 | POST | `/v1/fx/quotes` | `{sell, buy, amount}` → firm quote, 30s |
 | POST | `/v1/fx/quotes/:id/execute` | executes at most once |
