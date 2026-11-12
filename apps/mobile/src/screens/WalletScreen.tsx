@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, ApiError, type Wallet } from '../api';
-import { msg } from '../messages';
+import { msg, outcomeText } from '../messages';
 import { session } from '../session';
 import { theme } from '../theme';
 import { Button } from './LoginScreen';
 
-export function WalletScreen({ token, onLogout }: { token: string; onLogout: () => void }) {
+export function WalletScreen({ token, onLogout, onNavigate }: {
+  token: string; onLogout: () => void; onNavigate: (r: 'exchange' | 'withdraw') => void;
+}) {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [to, setTo] = useState('+58');
@@ -38,9 +40,8 @@ export function WalletScreen({ token, onLogout }: { token: string; onLogout: () 
     try {
       const r = await api.send(token, to.replace(/[\s-]/g, ''), amount.trim().replace(',', '.'), intentKey.current);
       intentKey.current = null;
-      if (r.data.status === 'posted') { setNotice({ text: 'Enviado ✓', ok: true }); setAmount(''); }
-      else if (r.data.status === 'held_for_review') setNotice({ text: 'En revisión. Te avisaremos.', ok: true });
-      else setNotice({ text: msg(r.data.reasons?.[0] ?? 'not_permitted'), ok: false });
+      setNotice(outcomeText(r.data.status, r.data.reasons));
+      if (r.data.status === 'posted') setAmount('');
       await load();
     } catch (e) {
       // Network errors keep the same key so a retry is safe. Definitive API errors reset it.
@@ -71,6 +72,14 @@ export function WalletScreen({ token, onLogout }: { token: string; onLogout: () 
             <Text style={styles.muted}>Saldo en dólares</Text>
             <Text style={styles.balance}>$ {usd ? Number(usd.amount).toFixed(2) : '—'}</Text>
             <Text style={styles.muted}>Bs. {ves?.amount ?? '—'}</Text>
+            <View style={styles.actions}>
+              <Pressable style={styles.action} onPress={() => onNavigate('exchange')} accessibilityRole="button">
+                <Text style={styles.actionText}>Cambiar Bs ↔ USD</Text>
+              </Pressable>
+              <Pressable style={styles.action} onPress={() => onNavigate('withdraw')} accessibilityRole="button">
+                <Text style={styles.actionText}>Retirar</Text>
+              </Pressable>
+            </View>
             {wallet && wallet.user.kyc_tier === 0 ? (
               <Text style={styles.warn}>Verifica tu identidad para enviar y cambiar dinero.</Text>
             ) : null}
@@ -109,6 +118,9 @@ const styles = StyleSheet.create({
   balance: { fontSize: 40, fontWeight: '800', color: theme.text, marginVertical: 4 },
   muted: { color: theme.muted },
   warn: { color: theme.danger, marginTop: 12 },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  action: { flex: 1, borderWidth: 1, borderColor: theme.primary, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  actionText: { color: theme.primary, fontWeight: '700' },
   section: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 12 },
   input: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12, color: theme.text },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border },

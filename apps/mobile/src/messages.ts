@@ -14,9 +14,19 @@ const MESSAGES: Record<string, string> = {
   network_not_supported: 'Esa red no está disponible.',
   address_invalid: 'Dirección de billetera inválida.',
   jurisdiction_not_supported: 'Puente no está disponible en tu país.',
+  quote_expired: 'La cotización venció. Pide una nueva.',
+  same_currency: 'Elige monedas distintas.',
+  amount_too_small: 'Monto demasiado pequeño.',
   not_permitted: 'No pudimos procesar esta operación. Contacta a soporte.',
   retry: 'Reintentando…',
   network_error: 'Sin conexión. Intenta de nuevo.',
 };
 
 export const msg = (code: string) => MESSAGES[code] ?? 'Ocurrió un error. Intenta de nuevo.';
+
+/** Customer copy for a transfer outcome. */
+export function outcomeText(status: 'posted' | 'held_for_review' | 'denied', reasons?: string[]) {
+  if (status === 'posted') return { text: 'Listo ✓', ok: true };
+  if (status === 'held_for_review') return { text: 'En revisión. El monto queda reservado y te avisaremos.', ok: true };
+  return { text: msg(reasons?.[0] ?? 'not_permitted'), ok: false };
+}

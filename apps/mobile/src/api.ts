@@ -31,6 +31,17 @@ export interface Wallet {
 
 export interface TransferResult { transfer_id: string; status: 'posted' | 'held_for_review' | 'denied'; reasons?: string[] }
 
+export interface Quote {
+  quote_id: string;
+  sell: { currency: 'USDC' | 'VES'; amount: string };
+  buy: { currency: 'USDC' | 'VES'; amount: string };
+  mid_rate: string;
+  spread_bps: number;
+  expires_at: string;
+}
+
+export type Network = 'polygon' | 'base' | 'ethereum' | 'solana';
+
 export const api = {
   startOtp: (phone: string) => call<{ sent: boolean; dev_code?: string }>('/v1/auth/otp/start', { method: 'POST', body: { phone } }),
   verifyOtp: (phone: string, code: string) =>
@@ -44,4 +55,13 @@ export const api = {
     call<TransferResult>('/v1/transfers', {
       method: 'POST', token, idempotencyKey, body: { to_phone: toPhone, amount, currency: 'USDC' },
     }),
+  quote: (token: string, sell: 'USDC' | 'VES', buy: 'USDC' | 'VES', amount: string) =>
+    call<Quote>('/v1/fx/quotes', { method: 'POST', token, body: { sell, buy, amount } }),
+  /** Executing a quote is idempotent server-side (one execution per quote id). */
+  executeQuote: (token: string, quoteId: string) =>
+    call<TransferResult>(`/v1/fx/quotes/${quoteId}/execute`, { method: 'POST', token }),
+  withdraw: (token: string, idempotencyKey: string, body: {
+    network: Network; address: string; amount: string;
+    travel_rule?: { beneficiary_name: string; wallet_type: 'self_hosted' | 'vasp'; vasp_name?: string };
+  }) => call<TransferResult>('/v1/crypto/withdrawals', { method: 'POST', token, idempotencyKey, body }),
 };
