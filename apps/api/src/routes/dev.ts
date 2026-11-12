@@ -15,7 +15,7 @@ import { processCryptoDeposit } from '../deposits.ts';
  */
 export async function devRoutes(app: FastifyInstance, { db, config, screener }: Deps) {
   app.post<{ Body: { amount: string; currency?: 'USDC' | 'VES'; network?: string; from_address?: string } }>('/v1/dev/deposit', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: {
       body: {
         type: 'object', required: ['amount'], additionalProperties: false,
@@ -55,7 +55,7 @@ export async function devRoutes(app: FastifyInstance, { db, config, screener }: 
   });
 
   app.post<{ Body: { kyc_tier?: 0 | 1 | 2; screening?: string; status?: string; legal_name?: string; country?: string; age_days?: number } }>('/v1/dev/kyc', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: {
       body: {
         type: 'object', additionalProperties: false,

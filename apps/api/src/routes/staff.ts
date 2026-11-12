@@ -13,7 +13,7 @@ export async function staffRoutes(app: FastifyInstance, deps: Deps) {
   const auth = requireStaff(db);
 
   app.get<{ Querystring: { status?: string } }>('/v1/staff/cases', {
-    preHandler: auth,
+    onRequest: auth,
     schema: { querystring: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'awaiting_second_approval', 'approved', 'rejected', 'blocked'] } } } },
   }, async (req) => {
     const statuses = req.query.status ? [req.query.status] : ['open', 'awaiting_second_approval'];
@@ -26,7 +26,7 @@ export async function staffRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   app.get<{ Params: { id: string } }>('/v1/staff/cases/:id', {
-    preHandler: auth,
+    onRequest: auth,
     schema: { params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } } },
   }, async (req) => {
     const c = (await db.query('SELECT * FROM review_cases WHERE id = $1', [req.params.id])).rows[0];
@@ -46,7 +46,7 @@ export async function staffRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   app.post<{ Params: { id: string; action: ReviewAction }; Body: { note: string } }>('/v1/staff/cases/:id/:action', {
-    preHandler: auth,
+    onRequest: auth,
     schema: {
       params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, action: { type: 'string', enum: ['approve', 'reject', 'block', 'comment'] } } },
       body: { type: 'object', required: ['note'], additionalProperties: false, properties: { note: { type: 'string', maxLength: 2000 } } },

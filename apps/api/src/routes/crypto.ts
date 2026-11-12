@@ -21,7 +21,7 @@ interface WithdrawalBody {
 
 export async function cryptoRoutes(app: FastifyInstance, { db, config, screener }: Deps) {
   app.post<{ Body: WithdrawalBody }>('/v1/crypto/withdrawals', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: {
       body: {
         type: 'object', required: ['network', 'address', 'amount'], additionalProperties: false,

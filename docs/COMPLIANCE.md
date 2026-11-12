@@ -123,7 +123,11 @@ An independent adversarial review of this code (Nov 2026) found 10 defects, incl
   - **Reconciliation:** every balance re-derived from ledger entries (this catches even trigger-bypassing edits); net zero per currency; routing invariant; `compliance_hold` vs. open cases; `payout_clearing` vs. in-flight withdrawals; `blocked_funds` vs. filed OFAC blocked-property amounts; `custody_float` vs. the custodian's omnibus balance.
   - **Deadlines:** OFAC reports overdue (fails the run) or due within 3 business days; review cases past the 48h SLA; withdrawals flagged or unconfirmed after 24h.
   - **Re-screening:** customers re-screened every 30 days, with each result kept in append-only `person_screenings`. A confirmed match freezes the account and opens a case; a potential match opens a case.
-- [ ] List-update-triggered re-screening (instead of only every 30 days); retroactive address review when OFAC adds a crypto address; annual blocked-property report export
+- [x] **Retroactive address review** (`POST /v1/staff/sanctions/addresses`, compliance officers only):
+  - Newly listed addresses go into an append-only local denylist that **every** address screening checks first, so a listing takes effect immediately even if the vendor lags.
+  - Unsent or unconfirmed withdrawals to the address are halted.
+  - A review case opens for every customer who ever transacted with the address.
+- [ ] Automated ingestion of OFAC SDN updates (feeding the endpoint above); list-update-triggered person re-screening (today: every 30 days); annual blocked-property report export
 - [ ] Bs-partner reconciliation (`payout_clearing` VES) once a Bs payout partner exists
 - [ ] Transaction monitoring beyond the gate: rapid in/out, fan-in/fan-out, mule networks, P2P cycling
 - [ ] IP geolocation, VPN detection, device binding and step-up auth for sending

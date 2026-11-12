@@ -76,3 +76,4 @@ Amounts are decimal **strings**, never JSON numbers.
 | GET | `/v1/staff/cases` | open + awaiting-second-approval cases, with internal reasons |
 | GET | `/v1/staff/cases/:id` | subject, every compliance decision, every staff action |
 | POST | `/v1/staff/cases/:id/{approve,reject,block,comment}` | `{note}` required; approve is four-eyes; unfreeze needs compliance officers |
+| POST | `/v1/staff/sanctions/addresses` | compliance officers; newly sanctioned addresses → denylist, halt withdrawals, open cases |

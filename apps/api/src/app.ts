@@ -11,6 +11,8 @@ import { fxRoutes } from './routes/fx.ts';
 import { devRoutes } from './routes/dev.ts';
 import { cryptoRoutes } from './routes/crypto.ts';
 import { staffRoutes } from './routes/staff.ts';
+import { sanctionsRoutes } from './routes/sanctions.ts';
+import { withLocalDenylist } from './sanctions-lists.ts';
 
 export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider; screener: SanctionsScreener }
 
@@ -22,7 +24,9 @@ export async function buildApp(d: {
     throw new Error('production requires real sms, fx and screener providers');
   }
   const deps: Deps = {
-    db: d.db, config: d.config, sms: d.sms ?? mockSms, fx: d.fx ?? mockFxRates(), screener: d.screener ?? mockScreener,
+    db: d.db, config: d.config, sms: d.sms ?? mockSms, fx: d.fx ?? mockFxRates(),
+    // Every address screening checks our own denylist first (new listings apply instantly).
+    screener: withLocalDenylist(d.db, d.screener ?? mockScreener),
   };
   const opts: FastifyServerOptions = {
     logger: d.config.devMode ? false : {
@@ -60,6 +64,7 @@ export async function buildApp(d: {
   await fxRoutes(app, deps);
   await cryptoRoutes(app, deps);
   await staffRoutes(app, deps);
+  await sanctionsRoutes(app, deps);
   if (d.config.devMode) await devRoutes(app, deps);
   return app;
 }

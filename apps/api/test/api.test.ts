@@ -41,6 +41,13 @@ t('OTP login: wrong code rejected, attempts capped, sessions required', async ()
   assert.equal((await app.inject({ method: 'GET', url: '/v1/wallet', headers: u.h })).statusCode, 401);
 });
 
+t('authentication runs before body validation (no schema hints to anonymous callers)', async () => {
+  for (const url of ['/v1/transfers', '/v1/fx/quotes', '/v1/crypto/withdrawals']) {
+    const r = await app.inject({ method: 'POST', url, payload: { bogus: true } });
+    assert.equal(r.statusCode, 401, url);
+  }
+});
+
 t('unverified (tier 0) users cannot move money', async () => {
   const a = await login(app);
   const b = await login(app);

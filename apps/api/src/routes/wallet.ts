@@ -4,7 +4,7 @@ import type { Deps } from '../app.ts';
 import { requireAuth } from '../auth.ts';
 
 export async function walletRoutes(app: FastifyInstance, { db }: Deps) {
-  app.get('/v1/wallet', { preHandler: requireAuth(db) }, async (req) => {
+  app.get('/v1/wallet', { onRequest: requireAuth(db) }, async (req) => {
     const u = req.user!;
     const acc = await db.query<{ id: string; currency: Currency; balance: bigint }>(
       `SELECT id, currency, balance FROM accounts WHERE owner_user_id = $1 ORDER BY currency = 'USDC' DESC, currency`, [u.id]);

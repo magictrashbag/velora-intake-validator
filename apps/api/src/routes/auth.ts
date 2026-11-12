@@ -87,7 +87,7 @@ export async function authRoutes(app: FastifyInstance, { db, config, sms }: Deps
     });
   });
 
-  app.post('/v1/auth/logout', { preHandler: requireAuth(db) }, async (req) => {
+  app.post('/v1/auth/logout', { onRequest: requireAuth(db) }, async (req) => {
     await db.query('UPDATE sessions SET revoked_at = now() WHERE token_hash = $1',
       [sha256(req.headers.authorization!.slice(7))]);
     await audit(db, { actor: req.user!.id, action: 'auth.logout', ip: req.ip });

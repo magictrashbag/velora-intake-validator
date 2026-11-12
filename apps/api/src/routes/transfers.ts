@@ -11,7 +11,7 @@ interface P2PBody { to_phone: string; amount: string; currency: 'USDC'; note?: s
 
 export async function transferRoutes(app: FastifyInstance, { db, config }: Deps) {
   app.post<{ Body: P2PBody }>('/v1/transfers', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: {
       body: {
         type: 'object', required: ['to_phone', 'amount', 'currency'], additionalProperties: false,

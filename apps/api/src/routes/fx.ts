@@ -10,7 +10,7 @@ import { executeGatedMovement } from '../movement.ts';
 /** Bs <-> USD exchange against the house FX inventory, at a firm, short-lived quote. */
 export async function fxRoutes(app: FastifyInstance, { db, config, fx }: Deps) {
   app.post<{ Body: { sell: Currency; buy: Currency; amount: string } }>('/v1/fx/quotes', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: {
       body: {
         type: 'object', required: ['sell', 'buy', 'amount'], additionalProperties: false,
@@ -50,7 +50,7 @@ export async function fxRoutes(app: FastifyInstance, { db, config, fx }: Deps) {
   });
 
   app.post<{ Params: { id: string } }>('/v1/fx/quotes/:id/execute', {
-    preHandler: requireAuth(db),
+    onRequest: requireAuth(db),
     schema: { params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } } },
   }, async (req, reply) => {
     const me = req.user!;
