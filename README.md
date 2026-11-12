@@ -1,6 +1,6 @@
 # Puente
 
-**A dollar wallet, remittances, Bs ↔ USD exchange and payments for Venezuela**, built compliance-first.
+**A dollar wallet, remittances, Bs ↔ USD exchange and payments for Venezuela**, built compliance-first. Every conversion settles through USDC, and the database enforces this.
 
 > Working name. Status: **Phase 0 scaffold.** The core money engine is real and tested. Licensed partners (custody, KYC, sanctions screening, Bs payouts, cards) are mocked behind interfaces. Not for real money yet: see [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
@@ -32,7 +32,7 @@ npm run dev:api                           # http://localhost:3000
 npm run dev:mobile                        # Expo; set EXPO_PUBLIC_API_URL to your machine's LAN IP for a phone
 ```
 
-In development the OTP code is returned in the `/v1/auth/otp/start` response. `POST /v1/dev/deposit` and `POST /v1/dev/kyc` simulate partner webhooks, so a user can be funded and verified. Those routes don't exist when `NODE_ENV=production`.
+In development the OTP code is returned in the `/v1/auth/otp/start` response. `POST /v1/dev/kyc` (tier, screening, legal name) and `POST /v1/dev/deposit` simulate partners; the deposit goes through the real screening path, and test addresses ending in `dead` or `beef` screen as sanctioned or high-risk. Those routes don't exist when `NODE_ENV=production`.
 
 ## Test
 
@@ -41,7 +41,16 @@ eval "$(scripts/test-db.sh start)"   # throwaway Postgres on :54329
 npm run typecheck && npm test
 ```
 
-The API tests run against real Postgres and check the properties that matter for a money app: retries never double-send, concurrent spends never overdraw, A→B / B→A transfers never deadlock, sanctions hits are blocked without telling the customer why, limits include prior volume, FX quotes execute once and expire, and the database rejects unbalanced, edited or deleted ledger rows on its own.
+The API tests run against real Postgres and check the properties that matter for a money app:
+
+- Retries never double-send, concurrent spends never overdraw, and A→B / B→A transfers never deadlock.
+- Sanctions hits are blocked without telling the customer why.
+- The database refuses fiat↔fiat conversions and unbalanced, edited or deleted ledger rows on its own.
+- Deposits from sanctioned addresses are blocked and generate an OFAC report.
+- The Travel Rule applies from US$1,000, and structuring patterns are held for review.
+- Webhooks reject forged or replayed calls.
+
+**Production** refuses to start without real SMS, FX-rate and screening providers and their secrets. None are integrated yet: that is Phase 1, gated on [docs/COMPLIANCE.md §5](docs/COMPLIANCE.md#5-not-built-yet-blocking-for-real-money).
 
 ## API (v1)
 
@@ -54,5 +63,7 @@ The API tests run against real Postgres and check the properties that matter for
 | POST | `/v1/transfers` | `Idempotency-Key` header required; `{to_phone, amount, currency:"USDC"}` → 201 posted / 202 held / 403 denied |
 | POST | `/v1/fx/quotes` | `{sell, buy, amount}` → firm quote, 30s |
 | POST | `/v1/fx/quotes/:id/execute` | executes at most once |
+| POST | `/v1/crypto/withdrawals` | `Idempotency-Key`; `{network, address, amount, travel_rule?}`; address screened; Travel Rule ≥ US$1,000 |
+| POST | `/v1/webhooks/custody/deposits` | custodian only; HMAC `x-signature` over `x-timestamp.body` |
 
 Amounts are decimal **strings**, never JSON numbers.

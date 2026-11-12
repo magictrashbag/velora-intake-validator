@@ -44,8 +44,9 @@ export async function login(app: FastifyInstance, phone = `+58412${String(1_000_
     token,
     h,
     kyc: (body: object) => app.inject({ method: 'POST', url: '/v1/dev/kyc', headers: h, payload: body }),
-    deposit: (amount: string, currency = 'USDC') =>
-      app.inject({ method: 'POST', url: '/v1/dev/deposit', headers: h, payload: { amount, currency } }),
+    deposit: (amount: string, currency = 'USDC', from_address?: string) =>
+      app.inject({ method: 'POST', url: '/v1/dev/deposit', headers: h,
+        payload: { amount, currency, ...(from_address ? { from_address } : {}) } }),
     send: (to: string, amount: string, key: string = randomUUID()) =>
       app.inject({ method: 'POST', url: '/v1/transfers', headers: { ...h, 'idempotency-key': key },
         payload: { to_phone: to, amount, currency: 'USDC' } }),
@@ -56,8 +57,17 @@ export async function login(app: FastifyInstance, phone = `+58412${String(1_000_
   };
 }
 
+/** KYC-approved, screened, established (30-day-old) user. */
 export async function verifiedUser(app: FastifyInstance, tier = 1) {
   const u = await login(app);
-  await u.kyc({ kyc_tier: tier, screening: 'clear' });
+  await u.kyc({ kyc_tier: tier, screening: 'clear', legal_name: 'Ana María Pérez', age_days: 30 });
   return u;
+}
+
+export const CLEAN = '0x' + '1'.repeat(40);
+export const SANCTIONED = '0x' + '2'.repeat(36) + 'dead';
+export const HIGH_RISK = '0x' + '3'.repeat(36) + 'beef';
+
+export function withdraw(app: FastifyInstance, u: { h: Record<string, string> }, body: object, key: string = randomUUID()) {
+  return app.inject({ method: 'POST', url: '/v1/crypto/withdrawals', headers: { ...u.h, 'idempotency-key': key }, payload: body });
 }

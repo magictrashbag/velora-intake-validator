@@ -2,7 +2,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createPool, withTx, type Db } from './db.ts';
-import { loadConfig } from './config.ts';
 
 const MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../db/migrations');
 
@@ -22,7 +21,9 @@ export async function migrate(db: Db, log: (m: string) => void = () => {}): Prom
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const db = createPool(loadConfig().databaseUrl);
+  const url = process.env.DATABASE_URL;
+  if (!url) { console.error('DATABASE_URL is required'); process.exit(1); }
+  const db = createPool(url);
   migrate(db, console.log)
     .then(() => db.end())
     .catch((e) => { console.error(e); process.exit(1); });

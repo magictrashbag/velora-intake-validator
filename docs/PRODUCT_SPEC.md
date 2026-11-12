@@ -29,9 +29,9 @@ Positioning: **the trustworthy one.** Users have just watched an app they relied
 
 | # | Line | MVP behaviour | Rails / partners |
 |---|---|---|---|
-| A | **USD wallet** | Balance held as USDC (shown as "dólares"); free instant P2P by phone number | Licensed custodian (omnibus) |
-| B | **Bs ↔ USD exchange** | Firm quote valid for 30s, spread shown up front, executes once | FX inventory + licensed local Bs partner (Pago Móvil) |
-| C | **Remittances in** | Sender abroad pays by card/ACH/SEPA; recipient gets USD in wallet or Bs via Pago Móvil | Licensed MTL/EMI partner per corridor |
+| A | **USD wallet** | Balance held as USDC (shown as "dólares"); free instant P2P by phone number; screened on-chain deposits/withdrawals | Licensed custodian (omnibus) |
+| B | **Bs ↔ USD exchange** | Always via USDC. Firm quote valid for 30s, spread and rate source shown up front, executes once | FX inventory + licensed local Bs partner (Pago Móvil) |
+| C | **Remittances in** | Sender abroad pays by card/ACH/SEPA → USDC → recipient keeps USD in wallet or receives Bs via Pago Móvil | Licensed MTL/EMI partner per corridor |
 | D | **Payments / card** | Merchant QR pay (P2P under the hood), then a virtual USD card | Card issuer-processor (we never see PANs) |
 
 ## 5. Phases

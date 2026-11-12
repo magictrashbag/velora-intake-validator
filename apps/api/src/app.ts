@@ -1,19 +1,28 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { FxRateProvider } from '@puente/core';
+import type { FxRateProvider, SanctionsScreener } from '@puente/core';
 import type { Config } from './config.ts';
 import type { Db } from './db.ts';
 import { AppError } from './errors.ts';
-import { mockFxRates, mockSms, type SmsSender } from './providers/mock.ts';
+import { mockFxRates, mockScreener, mockSms, type SmsSender } from './providers/mock.ts';
 import { authRoutes } from './routes/auth.ts';
 import { walletRoutes } from './routes/wallet.ts';
 import { transferRoutes } from './routes/transfers.ts';
 import { fxRoutes } from './routes/fx.ts';
 import { devRoutes } from './routes/dev.ts';
+import { cryptoRoutes } from './routes/crypto.ts';
 
-export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider }
+export interface Deps { db: Db; config: Config; sms: SmsSender; fx: FxRateProvider; screener: SanctionsScreener }
 
-export async function buildApp(d: { db: Db; config: Config; sms?: SmsSender; fx?: FxRateProvider }): Promise<FastifyInstance> {
-  const deps: Deps = { db: d.db, config: d.config, sms: d.sms ?? mockSms, fx: d.fx ?? mockFxRates() };
+export async function buildApp(d: {
+  db: Db; config: Config; sms?: SmsSender; fx?: FxRateProvider; screener?: SanctionsScreener;
+}): Promise<FastifyInstance> {
+  if (!d.config.devMode && (!d.sms || !d.fx || !d.screener)) {
+    // Never fall back to mocks in production: a mock screener would clear every address.
+    throw new Error('production requires real sms, fx and screener providers');
+  }
+  const deps: Deps = {
+    db: d.db, config: d.config, sms: d.sms ?? mockSms, fx: d.fx ?? mockFxRates(), screener: d.screener ?? mockScreener,
+  };
   const app = Fastify({
     logger: d.config.devMode ? false : {
       // Never log credentials or OTP codes.
@@ -21,6 +30,14 @@ export async function buildApp(d: { db: Db; config: Config; sms?: SmsSender; fx?
     },
     bodyLimit: 16 * 1024,
     trustProxy: true,
+  });
+
+  // Keep the raw body for webhook signature verification.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    (req as any).rawBody = body;
+    if (body === '') return done(null, undefined);
+    try { done(null, JSON.parse(body as string)); }
+    catch { done(Object.assign(new Error('invalid JSON'), { statusCode: 400, validation: true }), undefined); }
   });
 
   app.setErrorHandler((err: any, _req, reply) => {
@@ -38,6 +55,7 @@ export async function buildApp(d: { db: Db; config: Config; sms?: SmsSender; fx?
   await walletRoutes(app, deps);
   await transferRoutes(app, deps);
   await fxRoutes(app, deps);
+  await cryptoRoutes(app, deps);
   if (d.config.devMode) await devRoutes(app, deps);
   return app;
 }

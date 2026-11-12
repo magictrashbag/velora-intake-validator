@@ -3,6 +3,7 @@ import type { Deps } from '../app.ts';
 import { withTx } from '../db.ts';
 import { AppError } from '../errors.ts';
 import { audit } from '../audit.ts';
+import { isBlockedPhone, phoneCountry } from '@puente/core';
 import { newOtpCode, newSessionToken, otpHash, safeEqual, sha256, requireAuth } from '../auth.ts';
 
 const PHONE = { type: 'string', pattern: '^\\+[1-9][0-9]{7,14}$' } as const;
@@ -14,6 +15,10 @@ export async function authRoutes(app: FastifyInstance, { db, config, sms }: Deps
     schema: { body: { type: 'object', required: ['phone'], additionalProperties: false, properties: { phone: PHONE } } },
   }, async (req) => {
     const { phone } = req.body;
+    if (isBlockedPhone(phone)) {
+      await audit(db, { action: 'auth.blocked_jurisdiction', subject: phone, ip: req.ip });
+      throw new AppError(403, 'jurisdiction_not_supported');
+    }
     const recent = await db.query(
       `SELECT count(*)::int AS n FROM otp_challenges WHERE phone = $1 AND created_at > now() - interval '1 hour'`,
       [phone],
@@ -59,7 +64,8 @@ export async function authRoutes(app: FastifyInstance, { db, config, sms }: Deps
       if (!consumed.rowCount) throw new AppError(401, 'invalid_code');
 
       const ins = await tx.query(
-        `INSERT INTO users (phone) VALUES ($1) ON CONFLICT (phone) DO NOTHING RETURNING id`, [phone]);
+        `INSERT INTO users (phone, country) VALUES ($1, $2) ON CONFLICT (phone) DO NOTHING RETURNING id`,
+        [phone, phoneCountry(phone)]);
       let userId: string;
       if (ins.rows[0]) {
         userId = ins.rows[0].id;

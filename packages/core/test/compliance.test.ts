@@ -1,8 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateTransfer, DEFAULT_POLICY, type Party, type TransferContext } from '../src/compliance.ts';
+import {
+  evaluateTransfer, DEFAULT_POLICY, requiresOfacReport, isNearThreshold,
+  type Party, type TransferContext,
+} from '../src/compliance.ts';
 
-const ok: Party = { userId: 'a', status: 'active', kycTier: 1, screening: 'clear' };
+const ok: Party = { userId: 'a', status: 'active', kycTier: 1, screening: 'clear', country: 'VE', accountAgeDays: 90 };
+const t2: Party = { ...ok, kycTier: 2 };
 const base: TransferContext = {
   kind: 'p2p',
   sender: ok,
@@ -10,7 +14,13 @@ const base: TransferContext = {
   amountUsdCents: 50_00n,
   sentLast24hUsdCents: 0n,
   sentLast30dUsdCents: 0n,
+  recentNearThresholdCount: 0,
 };
+const withdrawal: TransferContext = {
+  ...base, kind: 'crypto_withdrawal', sender: t2, recipient: undefined,
+  counterpartyAddress: { network: 'polygon', address: '0xabc', risk: 'clear' },
+};
+const travel = { originatorName: 'Ana Pérez', beneficiaryName: 'Ana Pérez', beneficiaryWalletType: 'self_hosted' as const };
 
 test('clean small P2P is allowed', () => {
   assert.deepEqual(evaluateTransfer(base), { outcome: 'allow', reasons: [] });
@@ -40,6 +50,13 @@ test('frozen accounts cannot send or receive', () => {
   assert.equal(evaluateTransfer({ ...base, recipient: { ...ok, status: 'frozen' } }).outcome, 'deny');
 });
 
+test('embargoed jurisdictions: sender refused, recipient blocked and reportable', () => {
+  assert.deepEqual(evaluateTransfer({ ...base, sender: { ...ok, country: 'IR' } }).reasons, ['jurisdiction_not_supported']);
+  const d = evaluateTransfer({ ...base, recipient: { ...ok, country: 'KP' } });
+  assert.deepEqual(d.reasons, ['recipient_jurisdiction_blocked']);
+  assert.ok(requiresOfacReport(d.reasons));
+});
+
 test('payouts to state-owned banks go to review by default (OFAC GLs), deny if counsel says so', () => {
   const payout = { ...base, kind: 'payout_bank' as const, recipient: undefined };
   const d = evaluateTransfer({ ...payout, recipientBankCode: '0102' });
@@ -53,7 +70,47 @@ test('payouts to state-owned banks go to review by default (OFAC GLs), deny if c
 });
 
 test('large amounts are queued for manual review, not silently allowed', () => {
-  const t2 = { ...ok, kycTier: 2 as const };
   const d = evaluateTransfer({ ...base, sender: t2, recipient: t2, amountUsdCents: 3_000_00n });
   assert.deepEqual(d, { outcome: 'review', reasons: ['amount_requires_review'] });
+});
+
+test('crypto: address screening fails closed', () => {
+  assert.deepEqual(evaluateTransfer({ ...withdrawal, counterpartyAddress: undefined }).reasons, ['address_missing']);
+  const un = evaluateTransfer({ ...withdrawal, counterpartyAddress: { network: 'polygon', address: '0x', risk: 'unscreened' } });
+  assert.deepEqual(un, { outcome: 'deny', reasons: ['address_unscreened'] });
+  const sanc = evaluateTransfer({ ...withdrawal, counterpartyAddress: { network: 'polygon', address: '0x', risk: 'sanctioned' } });
+  assert.deepEqual(sanc, { outcome: 'deny', reasons: ['address_sanctioned'] });
+  assert.ok(requiresOfacReport(sanc.reasons));
+  const hr = evaluateTransfer({ ...withdrawal, counterpartyAddress: { network: 'polygon', address: '0x', risk: 'high_risk' } });
+  assert.deepEqual(hr, { outcome: 'review', reasons: ['address_high_risk'] });
+  const net = evaluateTransfer({ ...withdrawal, counterpartyAddress: { network: 'tron', address: 'T', risk: 'clear' } });
+  assert.deepEqual(net.reasons, ['network_not_supported']);
+});
+
+test('crypto deposits from sanctioned addresses are denied even for tier 0 (no limit check on inbound)', () => {
+  const dep: TransferContext = { ...withdrawal, kind: 'crypto_deposit', sender: { ...ok, kycTier: 0 } };
+  assert.equal(evaluateTransfer(dep).outcome, 'allow');
+  assert.equal(evaluateTransfer({ ...dep, counterpartyAddress: { network: 'base', address: '0x', risk: 'sanctioned' } }).outcome, 'deny');
+});
+
+test('Travel Rule: info required at/above US$1,000 (FATF), not below', () => {
+  assert.equal(evaluateTransfer({ ...withdrawal, amountUsdCents: 999_99n }).outcome, 'allow');
+  assert.deepEqual(evaluateTransfer({ ...withdrawal, amountUsdCents: 1_000_00n }).reasons, ['travel_rule_info_required']);
+  assert.equal(evaluateTransfer({ ...withdrawal, amountUsdCents: 1_000_00n, travelRule: travel }).outcome, 'allow');
+  const vaspNoName = { ...travel, beneficiaryWalletType: 'vasp' as const };
+  assert.equal(evaluateTransfer({ ...withdrawal, amountUsdCents: 1_000_00n, travelRule: vaspNoName }).outcome, 'deny');
+  const blank = { ...travel, beneficiaryName: '  ' };
+  assert.equal(evaluateTransfer({ ...withdrawal, amountUsdCents: 1_000_00n, travelRule: blank }).outcome, 'deny');
+});
+
+test('monitoring: new account high value and structuring go to review', () => {
+  const fresh = evaluateTransfer({ ...base, sender: { ...ok, accountAgeDays: 1 }, amountUsdCents: 300_00n });
+  assert.deepEqual(fresh, { outcome: 'review', reasons: ['new_account_high_value'] });
+  // Three transfers in a day each just under the US$1,000 Travel Rule threshold.
+  const s = evaluateTransfer({ ...withdrawal, amountUsdCents: 950_00n, recentNearThresholdCount: 2 });
+  assert.deepEqual(s, { outcome: 'review', reasons: ['possible_structuring'] });
+  assert.equal(evaluateTransfer({ ...withdrawal, amountUsdCents: 950_00n, recentNearThresholdCount: 1 }).outcome, 'allow');
+  assert.ok(isNearThreshold(900_00n, 1_000_00n));
+  assert.ok(!isNearThreshold(899_99n, 1_000_00n));
+  assert.ok(!isNearThreshold(1_000_00n, 1_000_00n));
 });

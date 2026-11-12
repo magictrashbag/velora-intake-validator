@@ -1,69 +1,125 @@
-# Compliance map
+# Compliance
 
-> **Not legal advice.** This is an engineering map of the obligations we expect, written so that counsel and a compliance officer can correct it. The sanctions picture for Venezuela changed several times in 2026, so verify everything against primary sources before relying on it.
+> **Not legal advice.** This is an engineering map of the obligations we expect, written so that counsel and a compliance officer can correct it. It was researched in November 2026, mostly from law-firm and vendor summaries of primary sources. The Venezuela sanctions regime was amended several times in 2026. **Verify every item against the primary source before launch.**
+>
+> **No compliance program is "bulletproof."** The goal is *defensible*: when a regulator, a bank partner or an auditor asks "why did you allow this?", we can show the rule, the inputs, the decision and who approved it. The code is built to make that answer automatic.
 
-## Operating model (recommended)
+## 1. The crypto-routing decision, stated precisely
 
-Puente is the **technology and customer layer**. Regulated activities are performed by **licensed partners** under their licenses:
+**Product rule:** every currency conversion settles through **USDC**. USD→VES is executed as USD→USDC, then USDC→VES. There is never a direct fiat↔fiat leg.
 
-| Activity | Who does it | Why |
+**What this does NOT do:** it doesn't reduce our regulatory obligations. Our research found no rule requiring conversions to go through crypto. Under FinCEN guidance (2013; FIN-2019-G001, still in force), a business that buys or sells convertible virtual currency, including stablecoins, is a **money transmitter**. Routing through crypto keeps every fiat-side obligation and adds crypto-specific ones (§3).
+
+**Why we do it anyway:**
+- Venezuela's dollar market already runs on stablecoins. Liquidity and customer trust are there.
+- One settlement asset means one reconciliation point (USDC custody vs. ledger).
+- The BCV official rate and the USDT P2P rate diverged by **14–22%** through Aug–Sep 2026 (per market trackers). Pricing everything against one auditable USDC leg makes the rate we used, and its source, explicit on every trade.
+
+**How it's enforced**, in three independent layers:
+
+| Layer | Mechanism |
+|---|---|
+| Domain | `planConversion()` in `packages/core/src/routing.ts` always emits X→USDC→Y legs |
+| Database (ledger) | Deferred constraint trigger `ledger_entries_routed`: a ledger transaction touches one currency, or two currencies one of which is USDC. Otherwise it is **rejected at COMMIT**, even for hand-written SQL |
+| Database (quotes) | `fx_quotes_routed` CHECK: every quote has USDC on one side |
+
+**Which stablecoin:** USDC, not USDT, even though USDT dominates Venezuelan P2P.
+- Under the **GENIUS Act** (effective 18 Jan 2027), Treasury's August 2026 proposal would allow US digital-asset service providers to offer only *permitted* payment stablecoins from **18 Jul 2028**.
+- USDT remains offshore. Tether's GENIUS-compliant US token is a separate product (USAT).
+- Accepting inbound USDT (auto-converted at deposit) is a Phase 2 decision for counsel. `SETTLEMENT_ASSET` is a single constant if it ever has to change.
+
+## 2. Operating model
+
+Puente is the **technology and customer layer**. Regulated activities are performed by **licensed partners** under their licenses (partner interfaces: `packages/core/src/providers.ts`):
+
+| Activity | Who | Note |
 |---|---|---|
 | Holding customer USDC | Licensed custodian (omnibus, segregated) | We never hold private keys |
-| USD money transmission (diaspora → VE) | Licensed MSB/MTL partner (US) / EMI (EU) | Avoids 49-state MTL licensing at launch |
-| Bs payouts / Pago Móvil | Licensed Venezuelan partner | Local banking access |
-| Identity verification | KYC vendor | Document + liveness checks |
-| Sanctions & PEP screening | Screening vendor | OFAC SDN and other lists, ongoing monitoring |
-| Card issuing | Issuer-processor + sponsor bank | PCI and network rules |
+| USD money transmission (diaspora → VE) | Licensed MSB/MTL (US) / EMI (EU) partner | Avoids 49-state MTL licensing at launch; counsel to confirm we are an agent, not a transmitter |
+| Bs payouts / Pago Móvil | Licensed Venezuelan partner | |
+| Identity verification | KYC vendor | Only references stored by us |
+| Party + address screening | OFAC/PEP screening + blockchain-analytics vendor | |
+| Card issuing | Issuer-processor + sponsor bank | PCI scope stays with them |
 
-Partners will underwrite *us*. The controls below are what lets them say yes, and keep saying yes.
+**Partner concentration is the #1 business risk.** In 2026 the market leader reportedly lost Stripe/Bridge, PayPal and its US banking provider within weeks. Plan for at least two partners per critical rail; the adapter interfaces exist so a partner can be swapped without touching the ledger.
 
-## United States
+## 3. Obligations map → where it's handled
 
-- **OFAC: Venezuela-related sanctions.** EO 13884 blocks the Government of Venezuela (GoV), including entities it owns or controls such as BCV, PdVSA and state banks. EO 13827 prohibits dealings in GoV-issued digital currency (e.g., the Petro). General Licenses relax parts of this regime and are amended often:
-  - **GL 16C**: noncommercial personal remittances (including through named state banks), and accounts of US persons at certain state banks.
-  - **GL 57** (April 2026): financial services involving **named** state banks (e.g., Banco de Venezuela, Banco del Tesoro; confirm the exact list in the official text).
-  - **In code:** `DEFAULT_POLICY.govBankCodes` / `govBankOutcome` in `packages/core/src/compliance.ts`. The default is **review**; counsel sets it to `allow` or `deny` per product. Screening of every party is mandatory, and a confirmed match is a deny. Never process GoV-issued digital currency.
-- **FinCEN / BSA:** MSB registration if we transmit or exchange in our own right. Partner-led, it means a written AML program, an appointed BSA officer, SAR/CTR processes, record keeping and the Travel Rule (≥US$3,000).
-- **State money transmitter licenses:** avoided at launch through partner structure, which counsel must confirm.
+### United States
 
-## Venezuela
+| Obligation | Source | Status in code |
+|---|---|---|
+| **Venezuela sanctions** (GoV blocked; GoV digital currency prohibited) | EO 13884, EO 13827; all Venezuela sanctions remain in effect per OFAC FAQs | Gov-bank counterparty rule (`govBankCodes`, default **review**). Party screening on sender **and** recipient |
+| **General Licenses** relaxing the above | GL 16C (personal remittances; accounts at named state banks), **GL 57** (Apr 2026: financial services with *named* state banks; bank list differs between summaries, so read the official text) | Default `govBankOutcome: 'review'`; counsel decides allow/deny per product |
+| **Comprehensive embargoes** | Cuba, Iran, North Korea, Crimea/"DNR"/"LNR" regions. Syria's program was revoked by EO 14312 (Jun 2025); listed Syrian persons remain blocked | Sign-up refused by phone prefix; residence-country rule in gate. **To add:** IP geolocation + KYC address (OFAC VC guidance) |
+| **Address screening** | OFAC SDN lists crypto addresses, exact match only (FAQ 594), and says the list is not exhaustive (FAQ 562) | Every withdrawal **and** deposit address is screened; **fail-closed** (unscreened = deny); evidence kept in `address_screenings` (append-only); `high_risk` → review |
+| **Blocking & reporting** | Blocked property report and rejected transaction report, **within 10 business days** (31 CFR 501.603 / 501.604); annual blocked-property report by 30 Sep | Sanctioned deposit → `blocked_funds` account (never credited) + `ofac_reports` row with `due_by`; rejected sanctioned withdrawal → `rejected_transaction` report. **To add:** daily alert on reports nearing `due_by` |
+| **BSA / AML program** | FinCEN MSB rules for CVC (registration, AML program, SAR/CTR, records) | Placeholder limits, review queue, decision log. **To add:** SAR workflow, BSA officer, written program |
+| **Travel Rule** | US: US$3,000 (31 CFR 1010.410(f)); FATF R.16: USD/EUR 1,000 (2025 revision; jurisdictions must adopt by end-2030) | **US$1,000 applied (stricter of the two)**. Originator name comes only from the KYC record, never from request input. Stored in `travel_rule_records` (append-only). **To add:** VASP-to-VASP messaging protocol |
+| **Stablecoin eligibility** | GENIUS Act; OCC final rule Oct 2026; Treasury DASP proposal Aug 2026 | USDC only; network allowlist |
 
-- **SUNACRIP** (crypto-asset regulator): under intervention/restructuring since 2023. Licensing has been sparse and is publicised by the companies rather than in an official list. We need either our own license or a licensed local partner, plus a plan for SUNACRIP changes.
-- **SUDEBAN / BCV:** rules for bank payouts and the official exchange rate. Decide (with counsel) which rate source we quote against and how we disclose it.
-- **SENIAT:** tax treatment, including the IGTF on foreign-currency/crypto payments. Sources disagree on how it applies to stablecoins.
+FinCEN withdrew several proposed digital-asset rules on 5 Oct 2026, and an April 2026 NPRM covers stablecoin issuers. Track both; neither changes the MSB baseline above.
 
-## What's already enforced in code
+### Venezuela
 
-| Control | Where |
+| Item | Status |
 |---|---|
-| KYC tiers with per-txn / daily / 30-day limits; tier 0 cannot move money | `compliance.ts` `DEFAULT_POLICY.limits` |
-| Sanctions screening status gates sender **and** recipient (confirmed → deny, potential/pending → review) | `compliance.ts` `checkParty` |
-| GoV-bank counterparty control (configurable) | `compliance.ts` |
-| Large-amount manual review threshold | `reviewAboveUsdCents` |
-| No tipping off: screening reasons hidden from customers | `apps/api/src/movement.ts` `USER_SAFE` |
-| Every gate decision stored with inputs + policy version | `compliance_decisions` table |
-| Immutable audit trail and ledger | append-only triggers in `001_init.sql` |
-| No double-spend on retry; no overdraft under concurrency | idempotency + row locks + DB CHECK, tested in `apps/api/test/api.test.ts` |
-| Credentials never stored in plaintext; logs redact auth headers & OTPs | `auth.ts`, `app.ts` |
+| **FATF grey list.** Venezuela has been listed since June 2024 and remained on it after the Oct 2026 plenary | Partners must apply **enhanced due diligence** to us and our customers. Built in: low tier-1 limits, mandatory screening, new-account and structuring rules. Expect partners to ask for source-of-funds at tier 2 |
+| **SUNACRIP** (crypto regulator): under intervention since the March 2023 scandal; licences issued sparsely (reportedly Kontigo until Jan 2027, Crixto until Dec 2026) and publicised by the companies rather than in an official list | **Blocking for launch:** our own licence or a licensed local partner. Watch for regulator restructuring |
+| **LOCDOFT / UNIF** (AML law, financial-intelligence unit; reporting reportedly paper-based) | Local SAR equivalent process needed |
+| **SUDEBAN / BCV** (bank payouts, official rate) | Decide the **reference rate** with counsel: BCV official vs. market. Disclose the rate source and spread on every quote (we already store `mid_rate`, `rate_source`, `spread_bps` per quote) |
+| **SENIAT** (tax; IGTF on foreign-currency/crypto payments, application to stablecoins disputed) | Open question for local tax counsel |
 
-**Every number in `DEFAULT_POLICY` is a placeholder.** Limits, the review threshold and the bank list belong to the compliance officer, and changing them requires bumping `policyVersion` in `apps/api/src/config.ts`.
+## 4. Controls enforced in code today
 
-## Before launch (checklist)
+| # | Control | Where | Test |
+|---|---|---|---|
+| 1 | One gated path for all outgoing money | `apps/api/src/movement.ts` | api + crypto tests |
+| 2 | KYC tiers & rolling limits (tier 0 cannot send) | `compliance.ts` `limits` | ✓ |
+| 3 | Party sanctions screening, both sides (pending/potential → review, match → deny) | `checkParty` | ✓ |
+| 4 | Embargoed jurisdictions (sign-up + gate) | `jurisdiction.ts` | ✓ |
+| 5 | Address screening, fail-closed, evidence kept | `deposits.ts`, `routes/crypto.ts` | ✓ |
+| 6 | Sanctioned deposits blocked (not credited, not bounced) + OFAC report due | `deposits.ts` | ✓ |
+| 7 | Deposits for not-yet-screened customers held | gate review → `compliance_hold` | ✓ |
+| 8 | Travel Rule ≥ US$1,000; originator from KYC only | gate + `movement.ts` | ✓ |
+| 9 | Structuring (3+ transfers just under a threshold in 24h) → review | `isNearThreshold` | ✓ |
+| 10 | New account (<7d) moving ≥ US$300 → review | gate | ✓ |
+| 11 | Large amount (≥ US$3,000, in or out) → review | gate | ✓ |
+| 12 | No tipping off: if *any* reason is internal, the customer sees only `not_permitted` | `CUSTOMER_SAFE_REASONS` | ✓ |
+| 13 | USDC-routing invariant (DB) | `002_crypto_compliance.sql` | ✓ |
+| 14 | Double-entry, append-only, no overdraft (DB) | `001_init.sql` | ✓ |
+| 15 | Idempotency: transfers (key + body hash), deposits (network + tx hash), FX (quote id) | ✓ | ✓ |
+| 16 | Withdrawal outbox: debit and send-instruction commit atomically | `crypto_withdrawals` | ✓ |
+| 17 | Webhooks: HMAC + 5-min replay window, authenticated before parsing the schema | `routes/crypto.ts` | ✓ |
+| 18 | Production refuses to start with mock providers or missing secrets; dev routes absent | `app.ts`, `config.ts` | ✓ |
+| 19 | Every decision stored with full inputs + policy version | `compliance_decisions` | ✓ |
 
-- [ ] Counsel opinion: US sanctions (GL 16C / GL 57 scope for each product line), MSB/MTL structure, Venezuelan licensing
-- [ ] Partner contracts: custody, KYC, screening, Bs payout, remittance corridor (two per critical rail)
-- [ ] Written AML/KYC program, risk assessment, BSA officer, SAR process, record-retention policy
-- [ ] Ongoing (not just onboarding) sanctions re-screening; list-update webhook re-screens all users
-- [ ] Transaction monitoring rules (structuring, rapid in/out, mule patterns) feeding the review queue
-- [ ] Manual review console with four-eyes approval for releasing held transfers
-- [ ] Geo/IP and phone-country controls for other comprehensively sanctioned jurisdictions
-- [ ] Customer terms, privacy policy (Spanish), complaint handling, published review SLAs
-- [ ] Daily reconciliation: `custody_float` vs custodian, `payout_clearing` vs Bs partner
-- [ ] Security: pen test, threat model, secrets in KMS, DB role separation, incident response plan, bug bounty
-- [ ] SOC 2 Type I readiness (partners will ask)
+**Every number in `DEFAULT_POLICY` is a placeholder** owned by the compliance officer. Changing one requires bumping `policyVersion` in `apps/api/src/config.ts`, so every past decision can be explained under the policy that produced it.
+
+## 5. Not built yet (blocking for real money)
+
+**Legal & program**
+- [ ] Counsel opinions: US (GL 16C/57 scope per product line, MSB/agent structure, GENIUS Act DASP status) and Venezuela (SUNACRIP licence or partner, BCV rate, IGTF)
+- [ ] Written BSA/AML program, risk assessment, BSA officer, SAR/CTR procedures, record retention (5 years minimum)
+- [ ] Partner contracts: two per rail (custody, on-ramp, Bs payout, screening/analytics)
+
+**Engineering**
+- [ ] **Review console**: release or deny held transfers and `compliance_hold` funds, four-eyes approval, audit-logged
+- [ ] Ongoing re-screening of all users and counterparties on list updates; retroactive address review when OFAC adds an address
+- [ ] Daily OFAC-report deadline alerting; annual blocked-property report export
+- [ ] Transaction monitoring beyond the gate: rapid in/out, fan-in/fan-out, mule networks, P2P cycling
+- [ ] IP geolocation, VPN detection, device binding and step-up auth for sending
+- [ ] Travel Rule VASP-to-VASP messaging; ownership proof for self-hosted wallets (e.g. message signing)
+- [ ] Daily reconciliation: `custody_float` vs. custodian, `payout_clearing` vs. Bs partner, `blocked_funds` vs. OFAC filings
+- [ ] Withdrawal worker (outbox → custodian) with confirmation tracking
+- [ ] Security: threat model, external pen test, secrets in KMS, DB role separation (app role cannot DDL), WAF/rate limits, incident response plan, bug bounty, SOC 2 readiness
 
 ## Sources
 
-- OFAC recent actions: https://ofac.treasury.gov/recent-actions/20260202 · https://ofac.treasury.gov/recent-actions/20261016
-- GL 56/57 analyses: https://www.crowellfintalk.com/2026/04/ofac-expands-venezuela-sanctions-relief-new-general-licenses-56-and-57-and-guidance-on-reporting-obligations/ · https://sanctionsnews.bakermckenzie.com/ofac-issues-new-venezuela-related-general-licenses-authorizing-commercial-negotiations-of-contingent-contracts-with-gov-and-financial-services-involving-named-venezuelan-banks/ · https://www.thompsonhinesmartrade.com/2026/04/ofac-issues-general-licenses-authorizing-venezuelan-certain-commercial-and-banking-transactions/
-- Venezuela crypto regulation status: https://www.lightspark.com/knowledge/is-crypto-legal-in-venezuela · https://coinstats.app/news/1aa71976ffaa368fe62b58633f701732fbf3459546c539dfae31e991690c1c88_Qu-exchanges-tienen-licencia-de-la-Sunacrip-en-2026-Lo-que-se-sabe-y-cmo-verificarlo/
+- OFAC: [recent actions 2026-02-02](https://ofac.treasury.gov/recent-actions/20260202) · [recent actions 2026-10-16](https://ofac.treasury.gov/recent-actions/20261016) · [VC compliance guidance](https://ofac.treasury.gov/system/files/126/virtual_currency_guidance_brochure.pdf) · [FAQs](https://ofac.treasury.gov/faqs/all-faqs) · [reporting FAQ](https://ofac.treasury.gov/faqs/topic/1606) · [31 CFR 501.603](https://www.law.cornell.edu/cfr/text/31/501.603)
+- GL 56/57 analyses: [Crowell](https://www.crowellfintalk.com/2026/04/ofac-expands-venezuela-sanctions-relief-new-general-licenses-56-and-57-and-guidance-on-reporting-obligations/) · [Baker McKenzie](https://sanctionsnews.bakermckenzie.com/ofac-issues-new-venezuela-related-general-licenses-authorizing-commercial-negotiations-of-contingent-contracts-with-gov-and-financial-services-involving-named-venezuelan-banks/) · [Thompson Hine](https://www.thompsonhinesmartrade.com/2026/04/ofac-issues-general-licenses-authorizing-venezuelan-certain-commercial-and-banking-transactions/)
+- Embargoes / Syria: [CASRAI](https://casrai.org/guides/embargoed-countries-list-export-control) · [sanctionslawyers.net](https://sanctionslawyers.net/blog-en/ofac-sanctioned-countries-list-2026/)
+- FinCEN: [2013 guidance](https://www.fincen.gov/resources/statutes-regulations/guidance/application-fincens-regulations-persons-administering) · [withdrawal of proposed rules](https://www.fincen.gov/news/news-releases/fincen-announces-withdrawals-proposed-digital-asset-related-rules) · [2026 NPRM](https://www.fincen.gov/system/files/2026-04/PPSI-AMLCFT-NPRM.pdf)
+- FATF R.16: [Mayer Brown](https://www.mayerbrown.com/en/insights/publications/2025/08/fatf-revises-aml-standards-for-certain-funds-transfers) · [21 Analytics](https://www.21analytics.ch/blog/fatf-recommendation-16-updated)
+- GENIUS Act: [Goodwin (OCC final rule)](https://www.goodwinlaw.com/en/insights/publications/2026/11/alerts-technology-dcb-occ-issues-final-genius-act-implementing-rule) · [Jones Day (Treasury DASP proposal)](https://www.jonesday.com/en/insights/2026/08/us-treasury-proposes-genius-act-rules-for-stablecoin-issuance-offer-and-sale) · [CoinDesk on USDT](https://www.coindesk.com/news-analysis/2026/07/17/tether-s-usdt-hits-2-year-countdown-threatening-its-position-on-u-s-crypto-platforms)
+- Venezuela: [FATF grey list Oct 2026](https://amluae.com/fatf-grey-list-update-october-2026/) · [KnowYourCountry](https://www.knowyourcountry.com/country-aml-intelligence/country/venezuela/) · [Lightspark](https://www.lightspark.com/knowledge/is-crypto-legal-in-venezuela) · [SUNACRIP licences (CoinStats)](https://coinstats.app/news/1aa71976ffaa368fe62b58633f701732fbf3459546c539dfae31e991690c1c88_Qu-exchanges-tienen-licencia-de-la-Sunacrip-en-2026-Lo-que-se-sabe-y-cmo-verificarlo/) · [BCV vs USDT gap (PitbullChain)](https://pitbullchain.com/noticias/brecha-entre-el-bcv-y-el-usdt-p2p-alcanza-el-21-8-analisis-de-mercado)

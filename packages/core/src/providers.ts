@@ -4,7 +4,8 @@
  * under their licenses. Each interface has a mock in apps/api/src/providers/mock.ts.
  */
 import type { Currency } from './money.ts';
-import type { KycTier, ScreeningResult } from './compliance.ts';
+import type { AddressRisk, KycTier, ScreeningResult } from './compliance.ts';
+import type { Network } from './crypto.ts';
 
 export interface KycProvider {
   /** Start a hosted verification flow; returns a URL/session for the partner's SDK. */
@@ -17,6 +18,12 @@ export interface SanctionsScreener {
     result: ScreeningResult;
     providerRef: string;
   }>;
+  /**
+   * Screen a blockchain address: exact match against OFAC SDN digital-currency addresses
+   * (OFAC FAQ 594: exact match only) PLUS blockchain-analytics exposure scoring, because
+   * OFAC states its address listings are not exhaustive (FAQ 562).
+   */
+  screenAddress(network: Network, address: string): Promise<{ risk: AddressRisk; providerRef: string }>;
 }
 
 export interface FxRateProvider {
@@ -26,8 +33,8 @@ export interface FxRateProvider {
 
 export interface CustodyProvider {
   /** Omnibus on-chain stablecoin custody. Internal transfers never touch the chain. */
-  createDepositAddress(userId: string, network: 'ethereum' | 'polygon' | 'tron' | 'solana'): Promise<string>;
-  withdraw(req: { idempotencyKey: string; network: string; address: string; amountMinor: bigint }): Promise<{ providerRef: string }>;
+  createDepositAddress(userId: string, network: Network): Promise<string>;
+  withdraw(req: { idempotencyKey: string; network: Network; address: string; amountMinor: bigint }): Promise<{ providerRef: string }>;
 }
 
 export interface BolivarPayoutProvider {

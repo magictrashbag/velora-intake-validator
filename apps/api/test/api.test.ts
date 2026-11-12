@@ -44,6 +44,7 @@ t('OTP login: wrong code rejected, attempts capped, sessions required', async ()
 t('unverified (tier 0) users cannot move money', async () => {
   const a = await login(app);
   const b = await login(app);
+  await a.kyc({ screening: 'clear' }); // screened but not identity-verified
   await a.deposit('10');
   const r = await a.send(b.phone, '1');
   assert.equal(r.statusCode, 403);
@@ -102,6 +103,16 @@ t('potential screening match holds the transfer for review; no money moves', asy
   assert.equal(r.json().status, 'held_for_review');
   assert.equal(await a.balance(), '50.000000');
   assert.equal(await b.balance(), '0.000000');
+});
+
+t('new accounts sending large amounts are held for review', async () => {
+  const a = await login(app);
+  await a.kyc({ kyc_tier: 1, screening: 'clear' }); // verified today
+  const b = await verifiedUser(app);
+  await a.deposit('400');
+  const r = await a.send(b.phone, '300');
+  assert.equal(r.statusCode, 202);
+  assert.equal(await a.balance(), '400.000000');
 });
 
 t('daily limit counts prior volume', async () => {
@@ -195,7 +206,10 @@ t('global invariant: every currency nets to zero and cached balances match entri
 t('production mode: dev simulators are not registered and OTP codes are not echoed', async () => {
   const { buildApp } = await import('../src/app.ts');
   const { loadConfig } = await import('../src/config.ts');
-  const prod = await buildApp({ db, config: loadConfig({ NODE_ENV: 'production', OTP_PEPPER: 'test-pepper' }) });
+  const { mockFxRates, mockSms, mockScreener } = await import('../src/providers/mock.ts');
+  const prodCfg = loadConfig({ NODE_ENV: 'production', OTP_PEPPER: 'test-pepper', CUSTODY_WEBHOOK_SECRET: 'whsec' });
+  await assert.rejects(buildApp({ db, config: prodCfg }), /real sms, fx and screener/, 'never fall back to mocks in prod');
+  const prod = await buildApp({ db, config: prodCfg, sms: mockSms, fx: mockFxRates(), screener: mockScreener });
   try {
     for (const url of ['/v1/dev/deposit', '/v1/dev/kyc']) {
       assert.equal((await prod.inject({ method: 'POST', url, payload: {} })).statusCode, 404);

@@ -19,7 +19,7 @@ No framework is compliant on its own. Compliance comes from **what the system gu
                        │
                        ├── @puente/core: money · fx · compliance gate
                        └── Partner adapters (packages/core/src/providers.ts)
-                             KYC · Sanctions screening · Custody (USDC) · Bs payout (Pago Móvil)
+                             KYC · Party + address screening · Custody (USDC) · Bs payout (Pago Móvil)
                              · FX rate source · Card issuer · SMS/WhatsApp OTP
 ```
 
@@ -34,6 +34,21 @@ Every transfer of any kind goes through `executeGatedMovement` (`apps/api/src/mo
 5. Record the transfer, the full compliance decision (inputs + reasons + policy version) and an audit event.
 6. Return a customer-safe result. Screening reasons are **never** shown to the customer, to avoid tipping off.
 
+## Conversions route through USDC
+
+`USDC` is the single settlement asset (`packages/core/src/routing.ts`). A conversion between two other currencies is two legs, X→USDC then USDC→Y, each its own balanced ledger transaction. The database rejects any ledger transaction touching more than two currencies, or two that don't include USDC (`ledger_entries_routed`, deferred to COMMIT). See [COMPLIANCE.md §1](COMPLIANCE.md#1-the-crypto-routing-decision-stated-precisely) for why, and for what this does *not* change legally.
+
+## Crypto rails
+
+- **Withdrawals** (`POST /v1/crypto/withdrawals`):
+  1. Validate the address syntax, then screen it. Screening is a network call made before the DB transaction, and the evidence is stored.
+  2. Run the gated movement (limits, Travel Rule, structuring).
+  3. On allow, debit the wallet and credit `payout_clearing`, and insert an **outbox** row in the same transaction. A worker sends outbox rows to the custodian, using `transfer_id` as the idempotency key, so a crash can't lose or duplicate an on-chain send.
+- **Deposits** (`POST /v1/webhooks/custody/deposits`):
+  1. Verify the HMAC over `timestamp.rawBody` and the 5-minute window, before schema validation.
+  2. Make processing idempotent on `(network, tx_hash)`, then screen the source address.
+  3. The funds have already arrived on-chain, so we can't refuse them, only decide where they sit. Clean funds are credited to the user's wallet. Review cases go to `compliance_hold`. Sanctioned funds go to `blocked_funds`, and an OFAC blocked-property report becomes due within 10 business days.
+
 ## Ledger
 
 Double-entry, signed integer minor units (`bigint`), in `db/migrations/001_init.sql`:
@@ -41,7 +56,7 @@ Double-entry, signed integer minor units (`bigint`), in `db/migrations/001_init.
 - `ledger_entries` per transaction must sum to zero per currency. This is checked by a **deferred constraint trigger at COMMIT**.
 - `accounts.balance` is maintained by trigger. A `CHECK` prevents any user wallet going negative, even through a manual SQL query.
 - `ledger_*`, `compliance_decisions` and `audit_log` are **append-only**: UPDATE, DELETE and TRUNCATE all raise. Corrections are new reversing transactions.
-- System accounts (`custody_float`, `fx_inventory`, `payout_clearing`, `fee_revenue`) are the other side of every external flow. Reconciliation means comparing `custody_float` against the custodian's statement every day.
+- System accounts (`custody_float`, `fx_inventory`, `payout_clearing`, `fee_revenue`, `compliance_hold`, `blocked_funds`) are the other side of every external flow. Reconciliation means comparing `custody_float` against the custodian's statement every day.
 
 **Scaling note:** every FX execution updates the single `fx_inventory` row per currency. That is fine for beta. At scale, shard the system accounts (N sub-accounts chosen at random) or batch postings.
 

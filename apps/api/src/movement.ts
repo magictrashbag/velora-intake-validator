@@ -1,16 +1,15 @@
-import { evaluateTransfer, type Currency, type Party, type TransferContext, type KycTier } from '@puente/core';
+import {
+  evaluateTransfer, requiresOfacReport, addBusinessDays, CUSTOMER_SAFE_REASONS, DEFAULT_POLICY,
+  type Currency, type Party, type TransferContext, type KycTier,
+} from '@puente/core';
 import type { Tx } from './db.ts';
 import type { Config } from './config.ts';
 import { AppError } from './errors.ts';
 import { audit, jsonBigint } from './audit.ts';
 import { sha256 } from './auth.ts';
 
-/** Reasons we may show the customer. Anything else (esp. screening) is NEVER disclosed:
- *  telling a customer they hit a sanctions/AML check is "tipping off". */
-const USER_SAFE = new Set(['kyc_tier_insufficient', 'limit_per_transaction', 'limit_daily', 'limit_monthly', 'bank_code_invalid']);
-
 export interface MovementRequest {
-  kind: TransferContext['kind'];
+  kind: Exclude<TransferContext['kind'], 'crypto_deposit'>;
   senderId: string;
   recipientId?: string;
   currency: Currency;
@@ -20,9 +19,14 @@ export interface MovementRequest {
   /** The exact request body; same key + different body is rejected. */
   body: unknown;
   recipientBankCode?: string;
+  counterpartyAddress?: TransferContext['counterpartyAddress'];
+  /** Beneficiary side of the Travel Rule; originator is filled from the sender's KYC record. */
+  travelRuleBeneficiary?: { beneficiaryName: string; beneficiaryWalletType: 'self_hosted' | 'vasp'; beneficiaryVaspName?: string };
   ip?: string;
   /** Posts ledger legs; only called when the gate says allow. Returns ledger txn id. */
   post: (tx: Tx) => Promise<string>;
+  /** Runs after the transfer row exists, in the same DB transaction (e.g. outbox rows). */
+  afterRecord?: (tx: Tx, transferId: string, status: MovementResult['status']) => Promise<void>;
 }
 
 export interface MovementResult {
@@ -31,13 +35,24 @@ export interface MovementResult {
   reasons?: string[];
 }
 
+const PARTY_SQL = `SELECT id, status, kyc_tier, screening, country, legal_name,
+                          floor(extract(epoch FROM now() - created_at) / 86400)::int AS age_days
+                     FROM users WHERE id = $1`;
+
+export function partyFromRow(row: any): Party {
+  return {
+    userId: row.id, status: row.status, kycTier: row.kyc_tier as KycTier, screening: row.screening,
+    country: row.country, accountAgeDays: row.age_days,
+  };
+}
+
 export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementRequest): Promise<MovementResult> {
   if (!/^[A-Za-z0-9:_-]{8,128}$/.test(m.idempotencyKey)) throw new AppError(400, 'idempotency_key_invalid');
   const requestHash = sha256(JSON.stringify(m.body, jsonBigint));
 
   // Serialise all money movement for this sender: makes idempotency and rolling limits race-free.
   // NO KEY UPDATE (not FOR UPDATE) so other transfers can still FK-reference this user without deadlocking.
-  const s = await tx.query('SELECT id, status, kyc_tier, screening FROM users WHERE id = $1 FOR NO KEY UPDATE', [m.senderId]);
+  const s = await tx.query(`${PARTY_SQL} FOR NO KEY UPDATE`, [m.senderId]);
   const sender = s.rows[0];
   if (!sender) throw new AppError(404, 'user_not_found');
 
@@ -51,29 +66,42 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
 
   let recipient: Party | undefined;
   if (m.recipientId) {
-    const r = await tx.query('SELECT id, status, kyc_tier, screening FROM users WHERE id = $1', [m.recipientId]);
+    const r = await tx.query(PARTY_SQL, [m.recipientId]);
     if (!r.rows[0]) throw new AppError(404, 'recipient_not_found');
-    recipient = party(r.rows[0]);
+    recipient = partyFromRow(r.rows[0]);
   }
 
-  const vol = await tx.query<{ d: bigint; m: bigint }>(
+  const p = DEFAULT_POLICY;
+  const vol = await tx.query<{ d: bigint; m: bigint; near: number }>(
     `SELECT coalesce(sum(amount_usd_cents) FILTER (WHERE created_at > now() - interval '24 hours'), 0)::bigint AS d,
-            coalesce(sum(amount_usd_cents), 0)::bigint AS m
+            coalesce(sum(amount_usd_cents), 0)::bigint AS m,
+            count(*) FILTER (WHERE created_at > now() - interval '24 hours' AND (
+                (amount_usd_cents < $2 AND amount_usd_cents * 10 >= $2 * 9) OR
+                (amount_usd_cents < $3 AND amount_usd_cents * 10 >= $3 * 9)))::int AS near
        FROM transfers
       WHERE sender_user_id = $1 AND status IN ('posted','held_for_review')
         AND created_at > now() - interval '30 days'`,
-    [m.senderId]);
+    [m.senderId, p.travelRuleThresholdUsdCents.toString(), p.reviewAboveUsdCents.toString()]);
+
+  // Travel Rule: the ORIGINATOR name comes from the KYC record, never from the request body.
+  // A missing legal name leaves originatorName empty, which the gate treats as incomplete.
+  const travelRule = m.travelRuleBeneficiary
+    ? { originatorName: sender.legal_name ?? '', ...m.travelRuleBeneficiary }
+    : undefined;
 
   const ctx: TransferContext = {
     kind: m.kind,
-    sender: party(sender),
+    sender: partyFromRow(sender),
     ...(recipient ? { recipient } : {}),
     ...(m.recipientBankCode ? { recipientBankCode: m.recipientBankCode } : {}),
+    ...(m.counterpartyAddress ? { counterpartyAddress: m.counterpartyAddress } : {}),
+    ...(travelRule ? { travelRule } : {}),
     amountUsdCents: m.amountUsdCents,
     sentLast24hUsdCents: vol.rows[0]!.d,
     sentLast30dUsdCents: vol.rows[0]!.m,
+    recentNearThresholdCount: vol.rows[0]!.near,
   };
-  const decision = evaluateTransfer(ctx);
+  const decision = evaluateTransfer(ctx, p);
 
   const status = decision.outcome === 'allow' ? 'posted' : decision.outcome === 'review' ? 'held_for_review' : 'denied';
   const ledgerTxnId = status === 'posted' ? await m.post(tx) : null;
@@ -90,13 +118,28 @@ export async function executeGatedMovement(tx: Tx, cfg: Config, m: MovementReque
     `INSERT INTO compliance_decisions (user_id, transfer_id, outcome, reasons, context, policy_version)
      VALUES ($1,$2,$3,$4,$5,$6)`,
     [m.senderId, transferId, decision.outcome, decision.reasons, JSON.stringify(ctx, jsonBigint), cfg.policyVersion]);
+
+  if (ctx.travelRule && status !== 'denied' && m.amountUsdCents >= p.travelRuleThresholdUsdCents) {
+    await tx.query(
+      `INSERT INTO travel_rule_records (transfer_id, originator, beneficiary) VALUES ($1,$2,$3)`,
+      [transferId,
+       JSON.stringify({ name: ctx.travelRule.originatorName, user_id: m.senderId }),
+       JSON.stringify({ name: ctx.travelRule.beneficiaryName, wallet_type: ctx.travelRule.beneficiaryWalletType,
+         vasp: ctx.travelRule.beneficiaryVaspName ?? null, address: m.counterpartyAddress?.address ?? null })]);
+  }
+
+  if (requiresOfacReport(decision.reasons)) {
+    await tx.query(
+      `INSERT INTO ofac_reports (report_type, user_id, transfer_id, reasons, currency, amount_minor, due_by)
+       VALUES ('rejected_transaction',$1,$2,$3,$4,$5,$6)`,
+      [m.senderId, transferId, decision.reasons, m.currency, m.amountMinor.toString(),
+       addBusinessDays(new Date(), 10).toISOString().slice(0, 10)]);
+  }
+
+  if (m.afterRecord) await m.afterRecord(tx, transferId, status);
   await audit(tx, { actor: m.senderId, action: `transfer.${status}`, subject: transferId, details: { kind: m.kind }, ...(m.ip ? { ip: m.ip } : {}) });
 
   return result(transferId, status, decision.reasons);
-}
-
-function party(row: any): Party {
-  return { userId: row.id, status: row.status, kycTier: row.kyc_tier as KycTier, screening: row.screening };
 }
 
 async function replay(tx: Tx, id: string, status: MovementResult['status']): Promise<MovementResult> {
@@ -104,8 +147,10 @@ async function replay(tx: Tx, id: string, status: MovementResult['status']): Pro
   return result(id, status, d.rows[0]?.reasons ?? []);
 }
 
+/** Customers see only safe reason codes; screening/sanctions/monitoring reasons would be tipping off. */
 function result(id: string, status: MovementResult['status'], reasons: string[]): MovementResult {
   if (status !== 'denied') return { transfer_id: id, status };
-  const safe = reasons.filter((r) => USER_SAFE.has(r));
-  return { transfer_id: id, status, reasons: safe.length ? safe : ['not_permitted'] };
+  const safe = reasons.filter((r) => CUSTOMER_SAFE_REASONS.has(r));
+  // If ANY reason is not customer-safe, show only the generic code: a partial list could itself leak.
+  return { transfer_id: id, status, reasons: safe.length === reasons.length && safe.length ? safe : ['not_permitted'] };
 }
