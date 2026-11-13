@@ -25,6 +25,16 @@ You need **Node.js 22.9+**, **Git** and **Docker Desktop** (for Postgres). To tr
 
 ### Windows (PowerShell)
 
+**Easiest:** with Docker Desktop installed, download [`scripts/windows/kame.ps1`](scripts/windows/kame.ps1) and run it from the folder you saved it in:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\kame.ps1
+```
+
+It installs Node.js and Git with `winget` if needed, puts Kame in `%USERPROFILE%\kame`, sets up the database and demo data, and opens the API, the app and the review console. Run it again any time to restart.
+
+**Or step by step:**
+
 ```powershell
 git clone https://github.com/magictrashbag/velora-intake-validator.git kame
 cd kame
